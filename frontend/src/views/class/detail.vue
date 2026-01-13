@@ -1,0 +1,438 @@
+<template>
+  <div class="class-detail">
+    <el-page-header @back="$router.back()">
+      <template #content>
+        <span>{{ classInfo.name || '班级详情' }}</span>
+      </template>
+    </el-page-header>
+
+    <div class="detail-content" v-loading="loading">
+      <!-- 基本信息 -->
+      <el-card class="info-card">
+        <template #header>
+          <div class="card-header">
+            <span>基本信息</span>
+            <el-button type="primary" size="small" @click="handleEdit" v-if="userStore.isTeacher">
+              <el-icon><Edit /></el-icon>编辑
+            </el-button>
+          </div>
+        </template>
+        <el-descriptions :column="3" border>
+          <el-descriptions-item label="班级名称">{{ classInfo.name }}</el-descriptions-item>
+          <el-descriptions-item label="班级编码">{{ classInfo.code }}</el-descriptions-item>
+          <el-descriptions-item label="年级">{{ classInfo.grade }}</el-descriptions-item>
+          <el-descriptions-item label="专业">{{ classInfo.major }}</el-descriptions-item>
+          <el-descriptions-item label="学生人数">{{ classInfo.studentCount || 0 }} 人</el-descriptions-item>
+          <el-descriptions-item label="创建时间">{{ classInfo.createTime }}</el-descriptions-item>
+          <el-descriptions-item label="班级描述" :span="3">{{ classInfo.description || '暂无描述' }}</el-descriptions-item>
+        </el-descriptions>
+      </el-card>
+
+      <!-- 关联课程 -->
+      <el-card class="course-card">
+        <template #header>
+          <div class="card-header">
+            <span>关联课程</span>
+            <el-button type="primary" size="small" @click="showBindCourseDialog = true" v-if="userStore.isTeacher">
+              <el-icon><Plus /></el-icon>关联课程
+            </el-button>
+          </div>
+        </template>
+        <el-table :data="relatedCourses" stripe>
+          <el-table-column prop="name" label="课程名称" />
+          <el-table-column prop="code" label="课程编码" width="150" />
+          <el-table-column prop="teacherName" label="授课教师" width="120" />
+          <el-table-column prop="credit" label="学分" width="80" />
+          <el-table-column label="操作" width="100" v-if="userStore.isTeacher">
+            <template #default="{ row }">
+              <el-button type="danger" link size="small" @click="handleUnbindCourse(row)">取消关联</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-empty v-if="relatedCourses.length === 0" description="暂无关联课程" />
+      </el-card>
+
+      <!-- 学生名单 -->
+      <el-card class="student-card">
+        <template #header>
+          <div class="card-header">
+            <span>学生名单 ({{ studentTotal }} 人)</span>
+            <div class="header-actions" v-if="userStore.isTeacher">
+              <el-button type="primary" size="small" @click="showAddStudentDialog = true">
+                <el-icon><Plus /></el-icon>添加学生
+              </el-button>
+              <el-button type="success" size="small" @click="showImportDialog = true">
+                <el-icon><Upload /></el-icon>批量导入
+              </el-button>
+            </div>
+          </div>
+        </template>
+        
+        <el-table :data="studentList" stripe v-loading="studentLoading">
+          <el-table-column prop="studentNo" label="学号" width="150" />
+          <el-table-column prop="realName" label="姓名" width="120" />
+          <el-table-column prop="username" label="用户名" width="150" />
+          <el-table-column prop="email" label="邮箱" />
+          <el-table-column prop="phone" label="手机号" width="130" />
+          <el-table-column label="操作" width="100" fixed="right" v-if="userStore.isTeacher">
+            <template #default="{ row }">
+              <el-popconfirm title="确定要移除该学生吗？" @confirm="handleRemoveStudent(row)">
+                <template #reference>
+                  <el-button type="danger" link size="small">移除</el-button>
+                </template>
+              </el-popconfirm>
+            </template>
+          </el-table-column>
+        </el-table>
+        
+        <div class="pagination-container" v-if="studentTotal > 0">
+          <el-pagination
+            v-model:current-page="studentPageNum"
+            v-model:page-size="studentPageSize"
+            :total="studentTotal"
+            :page-sizes="[10, 20, 50]"
+            layout="total, sizes, prev, pager, next"
+            @size-change="fetchStudents"
+            @current-change="fetchStudents"
+          />
+        </div>
+      </el-card>
+    </div>
+
+    <!-- 添加学生对话框 -->
+    <el-dialog v-model="showAddStudentDialog" title="添加学生" width="400px">
+      <el-form :model="addStudentForm" label-width="80px">
+        <el-form-item label="学号">
+          <el-input v-model="addStudentForm.studentNo" placeholder="请输入学生学号" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showAddStudentDialog = false">取消</el-button>
+        <el-button type="primary" :loading="addStudentLoading" @click="handleAddStudent">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 批量导入学生对话框 -->
+    <el-dialog v-model="showImportDialog" title="批量导入学生" width="700px">
+      <el-alert type="info" :closable="false" style="margin-bottom: 16px">
+        <template #title>
+          <div>请按以下格式填写学生信息，每行一个学生：</div>
+          <div style="color: #909399; margin-top: 4px">学号,姓名,邮箱(可选),手机号(可选)</div>
+        </template>
+      </el-alert>
+      <el-input
+        v-model="importContent"
+        type="textarea"
+        :rows="10"
+        placeholder="示例：
+2024001,张三,zhangsan@example.com,13800138001
+2024002,李四,lisi@example.com,13800138002
+2024003,王五"
+      />
+      <template #footer>
+        <el-button @click="showImportDialog = false">取消</el-button>
+        <el-button type="primary" :loading="importLoading" @click="handleBatchImport">导入</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 关联课程对话框 -->
+    <el-dialog v-model="showBindCourseDialog" title="关联课程" width="500px">
+      <el-form :model="bindCourseForm" label-width="80px">
+        <el-form-item label="选择课程">
+          <el-select v-model="bindCourseForm.courseId" placeholder="请选择课程" style="width: 100%" filterable>
+            <el-option v-for="c in availableCourses" :key="c.id" :label="c.name" :value="c.id">
+              <span>{{ c.name }}</span>
+              <span style="color: #909399; margin-left: 8px">{{ c.code }}</span>
+            </el-option>
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showBindCourseDialog = false">取消</el-button>
+        <el-button type="primary" :loading="bindCourseLoading" @click="handleBindCourse">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 编辑班级对话框 -->
+    <el-dialog v-model="showEditDialog" title="编辑班级" width="500px">
+      <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="80px">
+        <el-form-item label="班级名称" prop="name">
+          <el-input v-model="editForm.name" placeholder="请输入班级名称" />
+        </el-form-item>
+        <el-form-item label="年级" prop="grade">
+          <el-input v-model="editForm.grade" placeholder="如：2024" />
+        </el-form-item>
+        <el-form-item label="专业" prop="major">
+          <el-input v-model="editForm.major" placeholder="请输入专业名称" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="editForm.description" type="textarea" :rows="3" placeholder="班级描述（选填）" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showEditDialog = false">取消</el-button>
+        <el-button type="primary" :loading="editLoading" @click="handleSaveEdit">保存</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
+import { useUserStore } from '@/stores/user'
+import { getClassById, updateClass, addStudentToClass, removeStudentFromClass } from '@/api/class'
+import { getCourseList } from '@/api/course'
+import { batchImportStudents, getStudentByStudentNo } from '@/api/user'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import request from '@/utils/request'
+
+const route = useRoute()
+const userStore = useUserStore()
+const classId = route.params.id
+
+const loading = ref(false)
+const classInfo = ref({})
+const relatedCourses = ref([])
+
+// 学生列表
+const studentLoading = ref(false)
+const studentList = ref([])
+const studentTotal = ref(0)
+const studentPageNum = ref(1)
+const studentPageSize = ref(10)
+
+// 添加学生
+const showAddStudentDialog = ref(false)
+const addStudentLoading = ref(false)
+const addStudentForm = reactive({ studentNo: '' })
+
+// 批量导入
+const showImportDialog = ref(false)
+const importLoading = ref(false)
+const importContent = ref('')
+
+// 关联课程
+const showBindCourseDialog = ref(false)
+const bindCourseLoading = ref(false)
+const bindCourseForm = reactive({ courseId: '' })
+const availableCourses = ref([])
+
+// 编辑班级
+const showEditDialog = ref(false)
+const editLoading = ref(false)
+const editFormRef = ref()
+const editForm = reactive({ name: '', grade: '', major: '', description: '' })
+const editRules = { name: [{ required: true, message: '请输入班级名称', trigger: 'blur' }] }
+
+// 获取班级详情
+const fetchClassDetail = async () => {
+  loading.value = true
+  try {
+    const res = await getClassById(classId)
+    classInfo.value = res.data || {}
+    relatedCourses.value = res.data?.courses || []
+  } finally {
+    loading.value = false
+  }
+}
+
+// 获取学生列表
+const fetchStudents = async () => {
+  studentLoading.value = true
+  try {
+    const res = await request({
+      url: `/classes/${classId}/students`,
+      method: 'get',
+      params: { pageNum: studentPageNum.value, pageSize: studentPageSize.value }
+    })
+    studentList.value = res.data?.records || []
+    studentTotal.value = res.data?.total || 0
+  } finally {
+    studentLoading.value = false
+  }
+}
+
+// 获取可用课程列表
+const fetchAvailableCourses = async () => {
+  const res = await getCourseList({ pageNum: 1, pageSize: 100 })
+  availableCourses.value = res.data?.records || []
+}
+
+// 添加学生
+const handleAddStudent = async () => {
+  if (!addStudentForm.studentNo.trim()) {
+    ElMessage.warning('请输入学号')
+    return
+  }
+  addStudentLoading.value = true
+  try {
+    // 先查询学生是否存在
+    const studentRes = await getStudentByStudentNo(addStudentForm.studentNo)
+    if (!studentRes.data) {
+      ElMessage.error('学号不存在，请先创建学生账号')
+      return
+    }
+    // 添加到班级
+    await addStudentToClass(classId, studentRes.data.id)
+    ElMessage.success('添加成功')
+    showAddStudentDialog.value = false
+    addStudentForm.studentNo = ''
+    fetchStudents()
+    fetchClassDetail()
+  } finally {
+    addStudentLoading.value = false
+  }
+}
+
+// 移除学生
+const handleRemoveStudent = async (row) => {
+  try {
+    await removeStudentFromClass(classId, row.id)
+    ElMessage.success('移除成功')
+    fetchStudents()
+    fetchClassDetail()
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+// 批量导入学生
+const handleBatchImport = async () => {
+  if (!importContent.value.trim()) {
+    ElMessage.warning('请输入学生信息')
+    return
+  }
+  
+  const lines = importContent.value.trim().split('\n')
+  const students = []
+  
+  for (const line of lines) {
+    const parts = line.split(',').map(s => s.trim())
+    if (parts.length >= 2) {
+      students.push({
+        studentNo: parts[0],
+        realName: parts[1],
+        email: parts[2] || '',
+        phone: parts[3] || ''
+      })
+    }
+  }
+  
+  if (students.length === 0) {
+    ElMessage.warning('未解析到有效的学生信息')
+    return
+  }
+  
+  importLoading.value = true
+  try {
+    const res = await batchImportStudents({ classId: Number(classId), students })
+    const result = res.data
+    ElMessage.success(`导入完成：成功 ${result.successCount} 人，失败 ${result.failCount} 人`)
+    if (result.failCount > 0 && result.failDetails) {
+      ElMessageBox.alert(result.failDetails, '导入失败详情', { type: 'warning' })
+    }
+    showImportDialog.value = false
+    importContent.value = ''
+    fetchStudents()
+    fetchClassDetail()
+  } finally {
+    importLoading.value = false
+  }
+}
+
+// 关联课程
+const handleBindCourse = async () => {
+  if (!bindCourseForm.courseId) {
+    ElMessage.warning('请选择课程')
+    return
+  }
+  bindCourseLoading.value = true
+  try {
+    await request({
+      url: `/classes/${classId}/bindCourse/${bindCourseForm.courseId}`,
+      method: 'put'
+    })
+    ElMessage.success('关联成功')
+    showBindCourseDialog.value = false
+    bindCourseForm.courseId = ''
+    fetchClassDetail()
+  } finally {
+    bindCourseLoading.value = false
+  }
+}
+
+// 取消关联课程
+const handleUnbindCourse = (row) => {
+  ElMessageBox.confirm(`确定要取消关联课程"${row.name}"吗？`, '提示', { type: 'warning' }).then(async () => {
+    await request({
+      url: `/classes/${classId}/unbindCourse/${row.id}`,
+      method: 'delete'
+    })
+    ElMessage.success('取消关联成功')
+    fetchClassDetail()
+  })
+}
+
+// 编辑班级
+const handleEdit = () => {
+  Object.assign(editForm, {
+    name: classInfo.value.name,
+    grade: classInfo.value.grade,
+    major: classInfo.value.major,
+    description: classInfo.value.description
+  })
+  showEditDialog.value = true
+}
+
+const handleSaveEdit = async () => {
+  await editFormRef.value?.validate(async (valid) => {
+    if (valid) {
+      editLoading.value = true
+      try {
+        await updateClass(classId, editForm)
+        ElMessage.success('保存成功')
+        showEditDialog.value = false
+        fetchClassDetail()
+      } finally {
+        editLoading.value = false
+      }
+    }
+  })
+}
+
+onMounted(() => {
+  fetchClassDetail()
+  fetchStudents()
+  fetchAvailableCourses()
+})
+</script>
+
+<style lang="scss" scoped>
+.class-detail {
+  .detail-content {
+    margin-top: 20px;
+  }
+  
+  .info-card, .course-card, .student-card {
+    margin-bottom: 20px;
+  }
+  
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    
+    .header-actions {
+      display: flex;
+      gap: 8px;
+    }
+  }
+  
+  .pagination-container {
+    margin-top: 16px;
+    display: flex;
+    justify-content: flex-end;
+  }
+}
+</style>

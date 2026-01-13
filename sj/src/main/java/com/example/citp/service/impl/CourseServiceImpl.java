@@ -1,0 +1,298 @@
+package com.example.citp.service.impl;
+
+import cn.hutool.core.bean.BeanUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.example.citp.exception.BusinessException;
+import com.example.citp.mapper.*;
+import com.example.citp.model.dto.CourseRequest;
+import com.example.citp.model.entity.*;
+import com.example.citp.model.vo.*;
+import com.example.citp.service.CourseService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * 课程服务实现类
+ */
+@Service
+@RequiredArgsConstructor
+public class CourseServiceImpl implements CourseService {
+
+    private final CourseMapper courseMapper;
+    private final SysUserMapper sysUserMapper;
+    private final ClassMapper classMapper;
+    private final HomeworkMapper homeworkMapper;
+    private final ExamMapper examMapper;
+    private final JdbcTemplate jdbcTemplate;
+
+    @Override
+    public Page<CourseVO> getCourseList(Integer pageNum, Integer pageSize, String keyword) {
+        Page<Course> page = new Page<>(pageNum, pageSize);
+        
+        LambdaQueryWrapper<Course> wrapper = new LambdaQueryWrapper<>();
+        if (StringUtils.hasText(keyword)) {
+            wrapper.like(Course::getCourseName, keyword)
+                    .or()
+                    .like(Course::getCourseCode, keyword);
+        }
+        wrapper.orderByDesc(Course::getCreateTime);
+
+        Page<Course> coursePage = courseMapper.selectPage(page, wrapper);
+        
+        // 转换为 VO
+        Page<CourseVO> voPage = new Page<>(coursePage.getCurrent(), coursePage.getSize(), coursePage.getTotal());
+        voPage.setRecords(coursePage.getRecords().stream().map(course -> {
+            CourseVO vo = BeanUtil.copyProperties(course, CourseVO.class);
+            // 查询教师姓名
+            SysUser teacher = sysUserMapper.selectById(course.getTeacherId());
+            if (teacher != null) {
+                vo.setTeacherName(teacher.getRealName());
+            }
+            return vo;
+        }).toList());
+
+        return voPage;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void createCourse(CourseRequest request) {
+        // 检查课程编码是否已存在
+        Long count = courseMapper.selectCount(new LambdaQueryWrapper<Course>()
+                .eq(Course::getCourseCode, request.getCourseCode()));
+        if (count > 0) {
+            throw new BusinessException("课程编码已存在");
+        }
+
+        // 获取当前用户
+        SysUser currentUser = getCurrentUser();
+
+        Course course = BeanUtil.copyProperties(request, Course.class);
+        course.setTeacherId(currentUser.getId());
+        if (course.getStatus() == null) {
+            course.setStatus(0); // 默认未开课
+        }
+        courseMapper.insert(course);
+    }
+
+    @Override
+    public CourseDetailVO getCourseById(Long id) {
+        Course course = courseMapper.selectById(id);
+        if (course == null) {
+            throw new BusinessException("课程不存在");
+        }
+
+        CourseDetailVO vo = BeanUtil.copyProperties(course, CourseDetailVO.class);
+        
+        // 查询教师姓名
+        SysUser teacher = sysUserMapper.selectById(course.getTeacherId());
+        if (teacher != null) {
+            vo.setTeacherName(teacher.getRealName());
+        }
+
+        // 查询关联班级
+        List<ClassEntity> classes = classMapper.selectList(new LambdaQueryWrapper<ClassEntity>()
+                .eq(ClassEntity::getCourseId, id));
+        List<ClassVO> classVOs = classes.stream().map(c -> {
+            ClassVO classVO = BeanUtil.copyProperties(c, ClassVO.class);
+            if (c.getTeacherId() != null) {
+                SysUser classTeacher = sysUserMapper.selectById(c.getTeacherId());
+                if (classTeacher != null) {
+                    classVO.setTeacherName(classTeacher.getRealName());
+                }
+            }
+            return classVO;
+        }).toList();
+        vo.setClasses(classVOs);
+
+        // 计算学生总数
+        int studentCount = classes.stream()
+                .mapToInt(c -> c.getStudentCount() != null ? c.getStudentCount() : 0)
+                .sum();
+        vo.setStudentCount(studentCount);
+
+        // 查询作业列表（最近10条）
+        List<Homework> homeworks = homeworkMapper.selectList(new LambdaQueryWrapper<Homework>()
+                .eq(Homework::getCourseId, id)
+                .orderByDesc(Homework::getCreateTime)
+                .last("LIMIT 10"));
+        List<HomeworkVO> homeworkVOs = homeworks.stream().map(h -> {
+            HomeworkVO hvo = BeanUtil.copyProperties(h, HomeworkVO.class);
+            hvo.setCourseName(course.getCourseName());
+            if (h.getClassId() != null) {
+                ClassEntity classEntity = classMapper.selectById(h.getClassId());
+                if (classEntity != null) {
+                    hvo.setClassName(classEntity.getClassName());
+                }
+            }
+            return hvo;
+        }).toList();
+        vo.setHomeworks(homeworkVOs);
+
+        // 查询考试列表（最近10条）
+        List<Exam> exams = examMapper.selectList(new LambdaQueryWrapper<Exam>()
+                .eq(Exam::getCourseId, id)
+                .orderByDesc(Exam::getCreateTime)
+                .last("LIMIT 10"));
+        List<ExamVO> examVOs = exams.stream().map(e -> {
+            ExamVO evo = BeanUtil.copyProperties(e, ExamVO.class);
+            evo.setCourseName(course.getCourseName());
+            if (e.getClassId() != null) {
+                ClassEntity classEntity = classMapper.selectById(e.getClassId());
+                if (classEntity != null) {
+                    evo.setClassName(classEntity.getClassName());
+                }
+            }
+            return evo;
+        }).toList();
+        vo.setExams(examVOs);
+
+        return vo;
+    }
+
+    @Override
+    public CourseVO getCourseBasicInfo(Long id) {
+        Course course = courseMapper.selectById(id);
+        if (course == null) {
+            throw new BusinessException("课程不存在");
+        }
+
+        CourseVO vo = BeanUtil.copyProperties(course, CourseVO.class);
+        SysUser teacher = sysUserMapper.selectById(course.getTeacherId());
+        if (teacher != null) {
+            vo.setTeacherName(teacher.getRealName());
+        }
+        return vo;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateCourse(Long id, CourseRequest request) {
+        Course course = courseMapper.selectById(id);
+        if (course == null) {
+            throw new BusinessException("课程不存在");
+        }
+
+        // 检查课程编码是否已被其他课程使用
+        Long count = courseMapper.selectCount(new LambdaQueryWrapper<Course>()
+                .eq(Course::getCourseCode, request.getCourseCode())
+                .ne(Course::getId, id));
+        if (count > 0) {
+            throw new BusinessException("课程编码已存在");
+        }
+
+        BeanUtil.copyProperties(request, course, "id", "teacherId");
+        courseMapper.updateById(course);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteCourse(Long id) {
+        Course course = courseMapper.selectById(id);
+        if (course == null) {
+            throw new BusinessException("课程不存在");
+        }
+
+        courseMapper.deleteById(id);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateCourseStatus(Long id, Integer status) {
+        Course course = courseMapper.selectById(id);
+        if (course == null) {
+            throw new BusinessException("课程不存在");
+        }
+
+        course.setStatus(status);
+        courseMapper.updateById(course);
+    }
+
+    @Override
+    public List<CourseVO> getTeacherCourses() {
+        SysUser currentUser = getCurrentUser();
+        
+        List<Course> courses = courseMapper.selectList(new LambdaQueryWrapper<Course>()
+                .eq(Course::getTeacherId, currentUser.getId())
+                .orderByDesc(Course::getCreateTime));
+
+        return courses.stream().map(course -> {
+            CourseVO vo = BeanUtil.copyProperties(course, CourseVO.class);
+            vo.setTeacherName(currentUser.getRealName());
+            return vo;
+        }).toList();
+    }
+
+    @Override
+    public List<CourseVO> getStudentCourses() {
+        SysUser currentUser = getCurrentUser();
+        
+        // 查询学生所在的班级
+        List<Long> classIds = jdbcTemplate.queryForList(
+                "SELECT class_id FROM student_class WHERE student_id = ?",
+                Long.class, currentUser.getId());
+
+        if (classIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 查询班级关联的课程
+        List<ClassEntity> classes = classMapper.selectBatchIds(classIds);
+        List<Long> courseIds = classes.stream()
+                .filter(c -> c.getCourseId() != null)
+                .map(ClassEntity::getCourseId)
+                .distinct()
+                .toList();
+
+        if (courseIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<Course> courses = courseMapper.selectBatchIds(courseIds);
+        return courses.stream().map(course -> {
+            CourseVO vo = BeanUtil.copyProperties(course, CourseVO.class);
+            SysUser teacher = sysUserMapper.selectById(course.getTeacherId());
+            if (teacher != null) {
+                vo.setTeacherName(teacher.getRealName());
+            }
+            return vo;
+        }).toList();
+    }
+
+    /**
+     * 获取当前登录用户
+     */
+    private SysUser getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new BusinessException(401, "未登录");
+        }
+
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof String && "anonymousUser".equals(principal)) {
+            throw new BusinessException(401, "未登录");
+        }
+
+        UserDetails userDetails = (UserDetails) principal;
+        String username = userDetails.getUsername();
+
+        SysUser user = sysUserMapper.selectOne(new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getUsername, username));
+
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        return user;
+    }
+}

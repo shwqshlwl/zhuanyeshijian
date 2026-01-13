@@ -1,0 +1,117 @@
+// 全局样式
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
+  font-size: 14px;
+  color: #303133;
+  background-color: #f5f7fa;
+}
+
+// 滚动条样式
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #c0c4cc;
+  border-radius: 3px;
+  
+  &:hover {
+    background-color: #909399;
+  }
+}
+
+::-webkit-scrollbar-track {
+  background-color: #f5f7fa;
+}
+
+// 通用类
+.flex {
+  display: flex;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// 页面容器
+.page-container {
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 8px;
+  min-height: calc(100vh - 140px);
+}
+
+// 搜索表单
+.search-form {
+  margin-bottom: 20px;
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 8px;
+}
+
+// 表格操作栏
+.table-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+// 分页
+.pagination-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+// 卡片样式
+.card-item {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+  transition: all 0.3s;
+  
+  &:hover {
+    box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.1);
+  }
+}
+
+// 状态标签颜色
+.status-tag {
+  &.success {
+    color: #67c23a;
+  }
+  &.warning {
+    color: #e6a23c;
+  }
+  &.danger {
+    color: #f56c6c;
+  }
+  &.info {
+    color: #909399;
+  }
+}
