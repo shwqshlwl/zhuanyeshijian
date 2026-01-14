@@ -2,7 +2,7 @@
   <div class="experiment-detail">
     <el-page-header @back="$router.back()">
       <template #content>
-        <span>{{ experiment.title || '实验详情' }}</span>
+        <span>{{ experiment.experimentName || '实验详情' }}</span>
         <el-tag :type="statusType" style="margin-left: 12px">{{ statusText }}</el-tag>
       </template>
     </el-page-header>
@@ -19,13 +19,13 @@
           </div>
         </template>
         <el-descriptions :column="3" border>
-          <el-descriptions-item label="实验名称">{{ experiment.title }}</el-descriptions-item>
+          <el-descriptions-item label="实验名称">{{ experiment.experimentName }}</el-descriptions-item>
           <el-descriptions-item label="所属课程">{{ experiment.courseName }}</el-descriptions-item>
           <el-descriptions-item label="编程语言">
             <el-tag>{{ languageMap[experiment.language] || experiment.language }}</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="开始时间">{{ experiment.startTime || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="截止时间">{{ experiment.deadline }}</el-descriptions-item>
+          <el-descriptions-item label="截止时间">{{ experiment.endTime }}</el-descriptions-item>
           <el-descriptions-item label="总分">{{ experiment.totalScore || 100 }} 分</el-descriptions-item>
           <el-descriptions-item label="时间限制">{{ experiment.timeLimit || 1000 }} ms</el-descriptions-item>
           <el-descriptions-item label="内存限制">{{ experiment.memoryLimit || 128 }} MB</el-descriptions-item>
