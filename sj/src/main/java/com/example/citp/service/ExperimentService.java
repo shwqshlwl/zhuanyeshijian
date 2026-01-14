@@ -6,6 +6,9 @@ import com.example.citp.model.dto.ExperimentSubmitRequest;
 import com.example.citp.model.vo.ExperimentResultVO;
 import com.example.citp.model.vo.ExperimentVO;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * 实验服务接口
  */
@@ -45,4 +48,24 @@ public interface ExperimentService {
      * 获取实验结果
      */
     ExperimentResultVO getExperimentResult(Long experimentId);
+
+    /**
+     * 运行测试代码
+     */
+    Map<String, Object> runCode(Long experimentId, String code, String language);
+
+    /**
+     * 获取我的提交历史
+     */
+    List<ExperimentResultVO> getMySubmissions(Long experimentId);
+
+    /**
+     * 获取学生提交列表（教师）
+     */
+    Page<ExperimentResultVO> getSubmissions(Long experimentId, Integer pageNum, Integer pageSize);
+
+    /**
+     * 获取学生的实验提交详情（教师查看）
+     */
+    ExperimentResultVO getStudentSubmission(Long experimentId, Long studentId);
 }
