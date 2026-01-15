@@ -19,16 +19,16 @@
           </div>
         </template>
         <el-descriptions :column="3" border>
-          <el-descriptions-item label="作业标题">{{ homework.title }}</el-descriptions-item>
+          <el-descriptions-item label="作业标题">{{ homework.homeworkTitle }}</el-descriptions-item>
           <el-descriptions-item label="所属课程">{{ homework.courseName }}</el-descriptions-item>
           <el-descriptions-item label="所属班级">{{ homework.className || '全部班级' }}</el-descriptions-item>
           <el-descriptions-item label="开始时间">{{ homework.startTime || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="截止时间">{{ homework.deadline }}</el-descriptions-item>
+          <el-descriptions-item label="截止时间">{{ homework.endTime }}</el-descriptions-item>
           <el-descriptions-item label="总分">{{ homework.totalScore || 100 }} 分</el-descriptions-item>
           <el-descriptions-item label="提交情况">
             <span class="submit-stats">
               <el-progress :percentage="submitPercentage" :stroke-width="10" style="width: 150px" />
-              <span style="margin-left: 8px">{{ homework.submitCount || 0 }} / {{ homework.totalCount || 0 }}</span>
+              <span style="margin-left: 8px">{{ homework.submittedCount || 0 }} / {{ homework.totalCount || 0 }}</span>
             </span>
           </el-descriptions-item>
           <el-descriptions-item label="允许迟交">
@@ -93,30 +93,30 @@
                 :disabled="homework.status === 2 && !homework.allowLate"
               />
             </el-form-item>
-            <el-form-item label="附件上传">
-              <el-upload
-                class="upload-area"
-                drag
-                action="#"
-                :auto-upload="false"
-                :on-change="handleFileChange"
-              >
-                <el-icon class="el-icon--upload"><Upload /></el-icon>
-                <div class="el-upload__text">拖拽文件到此处或 <em>点击上传</em></div>
-              </el-upload>
-            </el-form-item>
+<!--            <el-form-item label="附件上传">-->
+<!--              <el-upload-->
+<!--                class="upload-area"-->
+<!--                drag-->
+<!--                action="#"-->
+<!--                :auto-upload="false"-->
+<!--                :on-change="handleFileChange"-->
+<!--              >-->
+<!--                <el-icon class="el-icon&#45;&#45;upload"><Upload /></el-icon>-->
+<!--                <div class="el-upload__text">拖拽文件到此处或 <em>点击上传</em></div>-->
+<!--              </el-upload>-->
+<!--            </el-form-item>-->
             <el-form-item>
               <el-button
                 type="primary"
                 size="large"
                 :loading="submitLoading"
-                :disabled="homework.status === 2 && !homework.allowLate"
+                :disabled="homework.status === 0 || (homework.status === 2 && !homework.allowLate)"
                 @click="handleSubmit"
               >
                 {{ mySubmission.status === 1 ? '重新提交' : '提交作业' }}
               </el-button>
-              <span v-if="homework.status === 2 && !homework.allowLate" class="deadline-tip">
-                作业已截止，不允许迟交
+              <span v-if="homework.status === 0 || (homework.status === 2 && !homework.allowLate)" class="deadline-tip">
+                作业没开始或者已截止且不允许迟交
               </span>
             </el-form-item>
           </el-form>
@@ -268,7 +268,7 @@ const statusText = computed(() => {
 })
 const submitPercentage = computed(() => {
   const total = homework.value.totalCount || 0
-  const submit = homework.value.submitCount || 0
+  const submit = homework.value.submittedCount || 0
   return total > 0 ? Math.round((submit / total) * 100) : 0
 })
 
@@ -276,7 +276,6 @@ const submitPercentage = computed(() => {
 const mySubmission = ref({})
 const submitForm = reactive({ content: '', attachment: '' })
 const submitLoading = ref(false)
-
 // 教师批改
 const submissionsLoading = ref(false)
 const submissions = ref([])
@@ -320,7 +319,7 @@ const fetchHomeworkDetail = async () => {
 const fetchMySubmission = async () => {
   try {
     const res = await request({
-      url: `/homeworks/${homeworkId}/my-submission`,
+      url: `/homeworks/${homeworkId}/submissions/${userStore.userId}`,
       method: 'get'
     })
     mySubmission.value = res.data || {}

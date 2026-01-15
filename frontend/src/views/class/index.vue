@@ -25,7 +25,7 @@
                 <el-icon :size="32"><School /></el-icon>
               </div>
               <div class="class-info">
-                <h4>{{ cls.name }}</h4>
+                <h4>{{ cls.className }}</h4>
                 <p>{{ cls.major }}</p>
                 <div class="class-meta">
                   <span><el-icon><User /></el-icon> {{ cls.studentCount || 0 }} 人</span>
@@ -41,9 +41,9 @@
     <!-- 列表视图 -->
     <div v-else>
       <el-table :data="classList" v-loading="loading" stripe>
-        <el-table-column prop="name" label="班级名称" min-width="150">
+        <el-table-column prop="className" label="班级名称" min-width="150">
           <template #default="{ row }">
-            <el-link type="primary" @click="$router.push(`/classes/${row.id}`)">{{ row.name }}</el-link>
+            <el-link type="primary" @click="$router.push(`/classes/${row.id}`)">{{ row.className }}</el-link>
           </template>
         </el-table-column>
         <el-table-column prop="grade" label="年级" width="100" />
@@ -171,7 +171,7 @@ const handleEdit = (row) => {
   isEdit.value = true
   currentId.value = row.id
   Object.assign(classForm, { 
-    className: row.name, 
+    className: row.className,
     classCode: row.code, 
     grade: row.grade, 
     major: row.major, 
@@ -202,7 +202,7 @@ const handleSubmit = async () => {
 }
 
 const handleDelete = (row) => {
-  ElMessageBox.confirm(`确定删除班级"${row.name}"吗？`, '提示', { type: 'warning' }).then(async () => {
+  ElMessageBox.confirm(`确定删除班级"${row.className}"吗？`, '提示', { type: 'warning' }).then(async () => {
     await deleteClass(row.id)
     ElMessage.success('删除成功')
     fetchList()

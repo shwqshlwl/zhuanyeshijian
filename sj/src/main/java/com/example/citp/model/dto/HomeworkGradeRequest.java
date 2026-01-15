@@ -15,7 +15,6 @@ public class HomeworkGradeRequest {
 
     @NotNull(message = "分数不能为空")
     @Min(value = 0, message = "分数不能小于0")
-    @Max(value = 100, message = "分数不能大于100")
     @Schema(description = "分数")
     private Integer score;
 

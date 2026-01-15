@@ -12,12 +12,13 @@ export const useUserStore = defineStore('user', {
     username: (state) => state.userInfo.username || '',
     realName: (state) => state.userInfo.realName || '',
     userType: (state) => state.userInfo.userType || 1,
+    userId:(state) => state.userInfo.id,
     // userType: 1-学生，2-教师，3-管理员
-    isStudent: (state) => state.userInfo.userType === 1,
-    isTeacher: (state) => state.userInfo.userType === 2 || state.userInfo.userType === 3,
-    isAdmin: (state) => state.userInfo.userType === 3,
+    isStudent: (state) => state.userInfo.userType === 3,
+    isTeacher: (state) => state.userInfo.userType === 1 || state.userInfo.userType === 2,
+    isAdmin: (state) => state.userInfo.userType === 1,
     roleText: (state) => {
-      const map = { 1: '学生', 2: '教师', 3: '管理员' }
+      const map = { 1: '管理员', 2: '教师', 3: '学生' }
       return map[state.userInfo.userType] || '未知'
     }
   },

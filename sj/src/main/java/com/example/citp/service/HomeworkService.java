@@ -5,6 +5,7 @@ import com.example.citp.model.dto.HomeworkGradeRequest;
 import com.example.citp.model.dto.HomeworkRequest;
 import com.example.citp.model.dto.HomeworkSubmitRequest;
 import com.example.citp.model.vo.HomeworkDetailVO;
+import com.example.citp.model.vo.HomeworkListDetailVO;
 import com.example.citp.model.vo.HomeworkSubmitVO;
 import com.example.citp.model.vo.HomeworkVO;
 
@@ -72,4 +73,13 @@ public interface HomeworkService {
      * 获取学生的作业列表
      */
     Page<HomeworkVO> getStudentHomeworks(Integer pageNum, Integer pageSize, Long courseId, Integer status);
+    /**
+     * 分页查询带提交比例的作业列表
+     */
+    Page<HomeworkListDetailVO> getHomeworkListDetail(Integer pageNum, Integer pageSize, Long courseId, Long classId, Integer status);
+
+    /**
+     * 更新homework的status
+     */
+    void refreshHomeworkStatus();
 }

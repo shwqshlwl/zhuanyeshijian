@@ -10,6 +10,7 @@ import com.example.citp.model.dto.HomeworkRequest;
 import com.example.citp.model.dto.HomeworkSubmitRequest;
 import com.example.citp.model.entity.*;
 import com.example.citp.model.vo.HomeworkDetailVO;
+import com.example.citp.model.vo.HomeworkListDetailVO;
 import com.example.citp.model.vo.HomeworkSubmitVO;
 import com.example.citp.model.vo.HomeworkVO;
 import com.example.citp.service.HomeworkService;
@@ -38,11 +39,14 @@ public class HomeworkServiceImpl implements HomeworkService {
     private final ClassMapper classMapper;
     private final SysUserMapper sysUserMapper;
     private final JdbcTemplate jdbcTemplate;
-
+    @Override
+    public void refreshHomeworkStatus() {
+        homeworkMapper.updateHomeworkStatusByTime();
+    }
     @Override
     public Page<HomeworkVO> getHomeworkList(Integer pageNum, Integer pageSize, Long courseId, Long classId, Integer status) {
         Page<Homework> page = new Page<>(pageNum, pageSize);
-        
+
         LambdaQueryWrapper<Homework> wrapper = new LambdaQueryWrapper<>();
         if (courseId != null) {
             wrapper.eq(Homework::getCourseId, courseId);
@@ -56,10 +60,27 @@ public class HomeworkServiceImpl implements HomeworkService {
         wrapper.orderByDesc(Homework::getCreateTime);
 
         Page<Homework> homeworkPage = homeworkMapper.selectPage(page, wrapper);
-        
+
         // 转换为 VO
         Page<HomeworkVO> voPage = new Page<>(homeworkPage.getCurrent(), homeworkPage.getSize(), homeworkPage.getTotal());
         voPage.setRecords(homeworkPage.getRecords().stream().map(this::convertToVO).toList());
+
+        return voPage;
+    }
+
+    @Override
+    public Page<HomeworkListDetailVO> getHomeworkListDetail(Integer pageNum, Integer pageSize, Long courseId, Long classId, Integer status) {
+        Page<Homework> page = new Page<>(pageNum, pageSize);
+
+        LambdaQueryWrapper<Homework> wrapper = new LambdaQueryWrapper<>();
+
+        Page<Homework> homeworkPage = homeworkMapper.selectPage(page, wrapper);
+
+
+
+        // 转换为 VO
+        Page<HomeworkListDetailVO> voPage = new Page<>(homeworkPage.getCurrent(), homeworkPage.getSize(), homeworkPage.getTotal());
+        voPage.setRecords(homeworkPage.getRecords().stream().map(this::convertToHomeworkListDetailVO).toList());
 
         return voPage;
     }
@@ -195,7 +216,7 @@ public class HomeworkServiceImpl implements HomeworkService {
 
         // 获取当前学生
         SysUser currentUser = getCurrentUser();
-        if (currentUser.getUserType() != 1) {
+        if (currentUser.getUserType() != 3) {
             throw new BusinessException("只有学生可以提交作业");
         }
 
@@ -361,6 +382,32 @@ public class HomeworkServiceImpl implements HomeworkService {
     }
 
     /**
+     * 转换为 HomeworkListDetailVO
+     * @param homework
+     * @return
+     */
+    private HomeworkListDetailVO convertToHomeworkListDetailVO(Homework homework) {
+        HomeworkListDetailVO vo = BeanUtil.copyProperties(homework, HomeworkListDetailVO.class);
+        // 统计提交情况
+        Long submittedCount = homeworkSubmitMapper.selectCount(new LambdaQueryWrapper<HomeworkSubmit>()
+                .eq(HomeworkSubmit::getHomeworkId, homework.getId())
+                .ge(HomeworkSubmit::getStatus, 1));
+        vo.setSubmittedCount(submittedCount.intValue());
+
+        // 计算总人数（班级学生数）
+        if (homework.getClassId() != null) {
+            Integer totalCount = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM student_class WHERE class_id = ?",
+                    Integer.class, homework.getClassId());
+            vo.setTotalCount(totalCount != null ? totalCount : 0);
+        } else {
+            vo.setTotalCount(0);
+        }
+
+        return vo;
+    }
+
+    /**
      * 转换提交为 VO
      */
     private HomeworkSubmitVO convertSubmitToVO(HomeworkSubmit submit) {
@@ -421,4 +468,6 @@ public class HomeworkServiceImpl implements HomeworkService {
             return null;
         }
     }
+
+
 }

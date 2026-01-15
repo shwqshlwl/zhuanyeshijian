@@ -25,7 +25,13 @@ export function getHomeworkById(id) {
     method: 'get'
   })
 }
-
+// 提交作业
+export function refreshStatus() {
+  return request({
+    url: `/homeworks/refresh-status`,
+    method: 'post',
+  })
+}
 // 更新作业
 export function updateHomework(id, data) {
   return request({

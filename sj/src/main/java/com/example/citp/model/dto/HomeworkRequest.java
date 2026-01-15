@@ -44,5 +44,21 @@ public class HomeworkRequest {
     private Integer status;
 
     @Schema(description = "是否允许迟交：0-不允许，1-允许")
-    private Integer allowLate;
+    private Boolean allowLate;
+
+    @Override
+    public String toString() {
+        return "HomeworkRequest{" +
+                "homeworkTitle='" + homeworkTitle + '\'' +
+                ", courseId=" + courseId +
+                ", classId=" + classId +
+                ", content='" + content + '\'' +
+                ", attachment='" + attachment + '\'' +
+                ", totalScore=" + totalScore +
+                ", startTime=" + startTime +
+                ", endTime=" + endTime +
+                ", status=" + status +
+                ", allowLate=" + allowLate +
+                '}';
+    }
 }

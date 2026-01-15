@@ -2,7 +2,7 @@
   <div class="class-detail">
     <el-page-header @back="$router.back()">
       <template #content>
-        <span>{{ classInfo.name || '班级详情' }}</span>
+        <span>{{ classInfo.className || '班级详情' }}</span>
       </template>
     </el-page-header>
 
@@ -18,7 +18,7 @@
           </div>
         </template>
         <el-descriptions :column="3" border>
-          <el-descriptions-item label="班级名称">{{ classInfo.name }}</el-descriptions-item>
+          <el-descriptions-item label="班级名称">{{ classInfo.className }}</el-descriptions-item>
           <el-descriptions-item label="班级编码">{{ classInfo.code }}</el-descriptions-item>
           <el-descriptions-item label="年级">{{ classInfo.grade }}</el-descriptions-item>
           <el-descriptions-item label="专业">{{ classInfo.major }}</el-descriptions-item>
@@ -156,8 +156,8 @@
     <!-- 编辑班级对话框 -->
     <el-dialog v-model="showEditDialog" title="编辑班级" width="500px">
       <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="80px">
-        <el-form-item label="班级名称" prop="name">
-          <el-input v-model="editForm.name" placeholder="请输入班级名称" />
+        <el-form-item label="班级名称" prop="className">
+          <el-input v-model="editForm.className" placeholder="请输入班级名称" />
         </el-form-item>
         <el-form-item label="年级" prop="grade">
           <el-input v-model="editForm.grade" placeholder="如：2024" />
@@ -222,8 +222,8 @@ const availableCourses = ref([])
 const showEditDialog = ref(false)
 const editLoading = ref(false)
 const editFormRef = ref()
-const editForm = reactive({ name: '', grade: '', major: '', description: '' })
-const editRules = { name: [{ required: true, message: '请输入班级名称', trigger: 'blur' }] }
+const editForm = reactive({ className: '', grade: '', major: '', description: '' })
+const editRules = { className: [{ required: true, message: '请输入班级名称', trigger: 'blur' }] }
 
 // 获取班级详情
 const fetchClassDetail = async () => {
@@ -377,7 +377,7 @@ const handleUnbindCourse = (row) => {
 // 编辑班级
 const handleEdit = () => {
   Object.assign(editForm, {
-    name: classInfo.value.name,
+    className: classInfo.value.className,
     grade: classInfo.value.grade,
     major: classInfo.value.major,
     description: classInfo.value.description

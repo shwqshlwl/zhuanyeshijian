@@ -6,6 +6,7 @@ import com.example.citp.model.dto.HomeworkGradeRequest;
 import com.example.citp.model.dto.HomeworkRequest;
 import com.example.citp.model.dto.HomeworkSubmitRequest;
 import com.example.citp.model.vo.HomeworkDetailVO;
+import com.example.citp.model.vo.HomeworkListDetailVO;
 import com.example.citp.model.vo.HomeworkSubmitVO;
 import com.example.citp.model.vo.HomeworkVO;
 import com.example.citp.service.HomeworkService;
@@ -38,10 +39,30 @@ public class HomeworkController {
         return Result.success(page);
     }
 
+    @GetMapping("/listDetailSubmit")
+    @Operation(summary = "分页查询带有提交信息的作业列表")
+    public Result<Page<HomeworkListDetailVO>> getHomeworkDetailList(
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "10") Integer pageSize,
+            @RequestParam(required = false) Long courseId,
+            @RequestParam(required = false) Long classId,
+            @RequestParam(required = false) Integer status) {
+        Page<HomeworkListDetailVO> page = homeworkService.getHomeworkListDetail(pageNum, pageSize, courseId, classId, status);
+        return Result.success(page);
+    }
+
+    @PostMapping("/refresh-status")
+    public Result<Void> refreshStatus() {
+//        System.out.println("刷新数据库作业状态");
+        homeworkService.refreshHomeworkStatus();
+        return Result.success();
+    }
     @PostMapping
     @Operation(summary = "创建作业")
     public Result<Void> createHomework(@Valid @RequestBody HomeworkRequest request) {
+//        System.out.println(request);
         homeworkService.createHomework(request);
+        homeworkService.refreshHomeworkStatus();
         return Result.successMsg("创建成功");
     }
 

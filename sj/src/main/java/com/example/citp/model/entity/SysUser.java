@@ -29,7 +29,7 @@ public class SysUser implements Serializable {
     private String avatar;
 
     /**
-     * 用户类型：1-学生，2-教师，3-管理员
+     * 用户类型：1-学生，2-教师，3-管理员 ????
      */
     private Integer userType;
 
