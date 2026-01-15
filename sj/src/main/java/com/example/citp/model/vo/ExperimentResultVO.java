@@ -41,4 +41,16 @@ public class ExperimentResultVO {
 
     @Schema(description = "提交时间")
     private LocalDateTime submitTime;
+
+    @Schema(description = "学生ID")
+    private Long studentId;
+
+    @Schema(description = "学生姓名")
+    private String studentName;
+
+    @Schema(description = "学号")
+    private String studentNo;
+
+    @Schema(description = "代码")
+    private String code;
 }

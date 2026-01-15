@@ -75,4 +75,41 @@ public class ExperimentController {
         ExperimentResultVO result = experimentService.getExperimentResult(id);
         return Result.success(result);
     }
+
+    @PostMapping("/{id}/run")
+    @Operation(summary = "运行测试代码")
+    public Result<java.util.Map<String, Object>> runCode(
+            @PathVariable Long id,
+            @RequestBody java.util.Map<String, String> request) {
+        String code = request.get("code");
+        String language = request.get("language");
+        java.util.Map<String, Object> result = experimentService.runCode(id, code, language);
+        return Result.success(result);
+    }
+
+    @GetMapping("/{id}/my-submissions")
+    @Operation(summary = "获取我的提交历史")
+    public Result<java.util.List<ExperimentResultVO>> getMySubmissions(@PathVariable Long id) {
+        java.util.List<ExperimentResultVO> submissions = experimentService.getMySubmissions(id);
+        return Result.success(submissions);
+    }
+
+    @GetMapping("/{id}/submissions")
+    @Operation(summary = "获取学生提交列表（教师）")
+    public Result<Page<ExperimentResultVO>> getSubmissions(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "10") Integer pageSize) {
+        Page<ExperimentResultVO> page = experimentService.getSubmissions(id, pageNum, pageSize);
+        return Result.success(page);
+    }
+
+    @GetMapping("/{experimentId}/submissions/{studentId}")
+    @Operation(summary = "获取学生提交详情（教师）")
+    public Result<ExperimentResultVO> getStudentSubmission(
+            @PathVariable Long experimentId,
+            @PathVariable Long studentId) {
+        ExperimentResultVO result = experimentService.getStudentSubmission(experimentId, studentId);
+        return Result.success(result);
+    }
 }
