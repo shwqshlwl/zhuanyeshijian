@@ -104,7 +104,7 @@ const menuRoutes = computed(() => {
   // 根据用户角色过滤菜单
   const userRole = userStore.isStudent ? 'student' : userStore.isTeacher ? 'teacher' : 'admin'
 
-  return allRoutes.filter(route => {
+  const filteredRoutes = allRoutes.filter(route => {
     // 如果路由没有定义roles，则所有角色都可以访问
     if (!route.meta?.roles || route.meta.roles.length === 0) {
       return true
@@ -112,6 +112,13 @@ const menuRoutes = computed(() => {
     // 检查用户角色是否在允许的角色列表中
     return route.meta.roles.includes(userRole)
   })
+
+  // 调试信息
+  console.log('当前用户角色:', userRole)
+  console.log('userStore.userType:', userStore.userType)
+  console.log('过滤后的菜单路由:', filteredRoutes.map(r => ({ path: r.path, title: r.meta?.title, roles: r.meta?.roles })))
+
+  return filteredRoutes
 })
 
 const toggleCollapse = () => {

@@ -150,6 +150,8 @@ const router = createRouter({
 
 // 路由守卫
 router.beforeEach((to, from, next) => {
+  console.log('路由守卫 - 跳转到:', to.path, '来自:', from.path)
+
   // 设置页面标题
   document.title = to.meta.title ? `${to.meta.title} - 课程智慧教学平台` : '课程智慧教学平台'
 
@@ -158,12 +160,14 @@ router.beforeEach((to, from, next) => {
 
   // 未登录检查
   if (requiresAuth && !userStore.token) {
+    console.log('路由守卫 - 未登录，重定向到登录页')
     next({ name: 'Login', query: { redirect: to.fullPath } })
     return
   }
 
   // 已登录访问登录页，跳转到首页
   if (to.name === 'Login' && userStore.token) {
+    console.log('路由守卫 - 已登录访问登录页，重定向到首页')
     next({ name: 'Dashboard' })
     return
   }
@@ -171,14 +175,25 @@ router.beforeEach((to, from, next) => {
   // 角色权限检查
   if (to.meta.roles && to.meta.roles.length > 0) {
     const userRole = userStore.isStudent ? 'student' : userStore.isTeacher ? 'teacher' : 'admin'
+    console.log('路由守卫 - 权限检查:', {
+      path: to.path,
+      requiredRoles: to.meta.roles,
+      userRole,
+      userType: userStore.userType,
+      isStudent: userStore.isStudent,
+      isTeacher: userStore.isTeacher,
+      isAdmin: userStore.isAdmin
+    })
 
     if (!to.meta.roles.includes(userRole)) {
       // 无权限，跳转到首页
+      console.log('路由守卫 - 权限不足，重定向到首页')
       next({ name: 'Dashboard' })
       return
     }
   }
 
+  console.log('路由守卫 - 允许跳转')
   next()
 })
 
