@@ -1,7 +1,7 @@
 <template>
   <div class="take-exam">
     <div class="exam-header">
-      <h2>{{ exam.title }}</h2>
+      <h2>{{ exam.examName }}</h2>
       <div class="timer">
         <el-icon><Clock /></el-icon>
         剩余时间：{{ formatTime(remainingTime) }}

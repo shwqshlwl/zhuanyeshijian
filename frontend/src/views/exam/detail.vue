@@ -2,7 +2,7 @@
   <div class="exam-detail">
     <el-page-header @back="$router.back()">
       <template #content>
-        <span>{{ exam.title || '考试详情' }}</span>
+        <span>{{ exam.examName || '考试详情' }}</span>
         <el-tag :type="statusType" style="margin-left: 12px">{{ statusText }}</el-tag>
       </template>
     </el-page-header>
@@ -24,14 +24,14 @@
           </div>
         </template>
         <el-descriptions :column="3" border>
-          <el-descriptions-item label="考试名称">{{ exam.title }}</el-descriptions-item>
+          <el-descriptions-item label="考试名称">{{ exam.examName }}</el-descriptions-item>
           <el-descriptions-item label="所属课程">{{ exam.courseName }}</el-descriptions-item>
-          <el-descriptions-item label="关联班级">{{ exam.className || '全部班级' }}</el-descriptions-item>
+          <el-descriptions-item label="关联班级">{{ exam.className || (exam.classId ? '班级信息缺失' : '全部班级') }}</el-descriptions-item>
           <el-descriptions-item label="开始时间">{{ exam.startTime }}</el-descriptions-item>
           <el-descriptions-item label="结束时间">{{ exam.endTime }}</el-descriptions-item>
           <el-descriptions-item label="考试时长">{{ exam.duration }} 分钟</el-descriptions-item>
-          <el-descriptions-item label="总分">{{ exam.totalScore }} 分</el-descriptions-item>
-          <el-descriptions-item label="及格分">{{ exam.passScore }} 分</el-descriptions-item>
+          <el-descriptions-item label="总分"><span class="score-number">{{ exam.totalScore }} 分</span></el-descriptions-item>
+          <el-descriptions-item label="及格分"><span class="score-number">{{ exam.passScore }} 分</span></el-descriptions-item>
           <el-descriptions-item label="题目数量">{{ examQuestions.length }} 题</el-descriptions-item>
           <el-descriptions-item label="考试说明" :span="3">{{ exam.description || '暂无说明' }}</el-descriptions-item>
         </el-descriptions>
@@ -190,7 +190,7 @@
       <div class="question-manager">
         <div class="question-filter">
           <el-select v-model="questionFilter.typeId" placeholder="题型" clearable style="width: 120px">
-            <el-option v-for="t in questionTypes" :key="t.id" :label="t.name" :value="t.id" />
+            <el-option v-for="t in questionTypes" :key="t.id" :label="t.typeName" :value="t.id" />
           </el-select>
           <el-select v-model="questionFilter.difficulty" placeholder="难度" clearable style="width: 100px">
             <el-option label="简单" :value="1" />
@@ -202,7 +202,7 @@
         
         <el-table :data="availableQuestions" stripe max-height="400" @selection-change="handleQuestionSelect">
           <el-table-column type="selection" width="50" />
-          <el-table-column prop="content" label="题目内容" min-width="250" show-overflow-tooltip />
+          <el-table-column prop="questionContent" label="题目内容" min-width="250" show-overflow-tooltip />
           <el-table-column prop="typeName" label="题型" width="80" />
           <el-table-column prop="difficulty" label="难度" width="70">
             <template #default="{ row }">
@@ -228,15 +228,15 @@
 
     <!-- 编辑考试对话框 -->
     <el-dialog v-model="showEditDialog" title="编辑考试" width="600px">
-      <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="100px">
-        <el-form-item label="考试名称" prop="title">
-          <el-input v-model="editForm.title" placeholder="请输入考试名称" />
+      <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="80px">
+        <el-form-item label="考试名称" prop="examName">
+          <el-input v-model="editForm.examName" placeholder="请输入考试名称" />
         </el-form-item>
         <el-form-item label="考试时间" prop="timeRange">
           <el-date-picker v-model="editForm.timeRange" type="datetimerange" start-placeholder="开始时间"
             end-placeholder="结束时间" style="width: 100%" />
         </el-form-item>
-        <el-row :gutter="20">
+        <el-row :gutter="8">
           <el-col :span="8">
             <el-form-item label="考试时长" prop="duration">
               <el-input-number v-model="editForm.duration" :min="10" :max="300" style="width: 100%" />
@@ -298,7 +298,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { getExamById, updateExam } from '@/api/exam'
@@ -365,9 +365,9 @@ const selectedTotalScore = computed(() => {
 const showEditDialog = ref(false)
 const editLoading = ref(false)
 const editFormRef = ref()
-const editForm = reactive({ title: '', timeRange: [], duration: 90, totalScore: 100, passScore: 60, description: '' })
+const editForm = reactive({ examName: '', timeRange: [], duration: 90, totalScore: 100, passScore: 60, description: '' })
 const editRules = {
-  title: [{ required: true, message: '请输入考试名称', trigger: 'blur' }],
+  examName: [{ required: true, message: '请输入考试名称', trigger: 'blur' }],
   timeRange: [{ required: true, message: '请选择考试时间', trigger: 'change' }]
 }
 
@@ -377,10 +377,21 @@ const currentStudent = ref({})
 
 // 获取考试详情
 const fetchExamDetail = async () => {
+  // validate examId
+  const id = Number(examId)
+  if (!id || Number.isNaN(id)) {
+    ElMessage.error('考试 ID 无效，无法获取详情')
+    return
+  }
+
   loading.value = true
   try {
-    const res = await getExamById(examId)
+    const res = await getExamById(id)
     exam.value = res.data || {}
+  } catch (e) {
+    console.error('fetchExamDetail error:', e)
+    // show friendlier message; the request util may already show server message
+    ElMessage.error(e.message || '获取考试详情失败，请联系管理员')
   } finally {
     loading.value = false
   }
@@ -443,6 +454,20 @@ const fetchAvailableQuestions = async () => {
   }
 }
 
+// 当管理题目对话框打开时自动加载可用题目（确保有 courseId）
+watch(showQuestionDialog, (visible) => {
+  if (visible) {
+    if (!exam.value.courseId) {
+      // 如果考试详情尚未加载，先获取后再加载题目
+      fetchExamDetail().then(() => {
+        fetchAvailableQuestions()
+      })
+    } else {
+      fetchAvailableQuestions()
+    }
+  }
+})
+
 // 选择题目
 const handleQuestionSelect = (rows) => {
   selectedQuestions.value = rows
@@ -483,7 +508,7 @@ const removeQuestion = async (row) => {
 // 编辑考试
 const handleEdit = () => {
   Object.assign(editForm, {
-    title: exam.value.title,
+    examName: exam.value.examName,
     timeRange: [exam.value.startTime, exam.value.endTime],
     duration: exam.value.duration,
     totalScore: exam.value.totalScore,
@@ -547,7 +572,7 @@ onMounted(() => {
     margin-top: 20px;
   }
   
-  .info-card, .question-card, .result-card, .my-result-card, .action-card {
+  .question-card, .result-card, .my-result-card, .action-card {
     margin-bottom: 20px;
   }
   
@@ -559,6 +584,51 @@ onMounted(() => {
     .header-actions {
       display: flex;
       gap: 8px;
+    }
+  }
+  
+  .info-card {
+      .el-descriptions {
+      /* responsive grid: each item min 140px, expand as space allows */
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px 12px;
+      font-size: 16px;
+
+      .el-descriptions__item {
+        padding: 8px 12px;
+        box-sizing: border-box;
+      }
+
+      .el-descriptions__label {
+        font-size: 14px;
+        color: #606266;
+        padding-right: 8px;
+        display: inline-block;
+        vertical-align: middle;
+      }
+
+      .el-descriptions__content {
+        /* allow wrapping inside grid cell; align numbers to right */
+        white-space: normal;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-align: right;
+        font-size: 15px;
+      }
+
+      .score-number {
+        display: inline-block;
+        min-width: 40px;
+        max-width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-align: right;
+        font-weight: 700;
+        font-size: 16px;
+        color: #409eff;
+      }
     }
   }
   
@@ -750,6 +820,13 @@ onMounted(() => {
         }
       }
     }
+  
+  // ensure number inputs don't overflow in edit dialog
+  .el-input-number {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
   }
 }
 </style>

@@ -111,18 +111,21 @@ public class ExamServiceImpl implements ExamService {
         }
 
         ExamVO vo = BeanUtil.copyProperties(exam, ExamVO.class);
-        
+
         // 查询课程名称
         Course course = courseMapper.selectById(exam.getCourseId());
         if (course != null) {
             vo.setCourseName(course.getCourseName());
         }
-        
+
         // 查询班级名称
         if (exam.getClassId() != null) {
             ClassEntity classEntity = classMapper.selectById(exam.getClassId());
             if (classEntity != null) {
                 vo.setClassName(classEntity.getClassName());
+            } else {
+                // 班级记录不存在，设置默认名称
+                vo.setClassName("班级已删除");
             }
         }
         
@@ -322,6 +325,52 @@ public class ExamServiceImpl implements ExamService {
         return totalScore;
     }
 
+    @Override
+    public java.util.List<Map<String, Object>> getExamQuestions(Long examId) {
+        return jdbcTemplate.queryForList(
+                "SELECT eq.id, eq.question_id, eq.question_score as score, eq.question_order, " +
+                "qb.question_content as content, qb.options, qb.correct_answer, qb.analysis, " +
+                "qb.difficulty, qb.question_type_id, qt.type_name as typeName " +
+                "FROM exam_question eq " +
+                "INNER JOIN question_bank qb ON eq.question_id = qb.id " +
+                "INNER JOIN question_type qt ON qb.question_type_id = qt.id " +
+                "WHERE eq.exam_id = ? " +
+                "ORDER BY eq.question_order", examId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void addQuestionsToExam(Long examId, java.util.List<Map<String, Object>> questions) {
+        // 检查考试是否存在
+        Exam exam = examMapper.selectById(examId);
+        if (exam == null) {
+            throw new BusinessException("考试不存在");
+        }
+
+        // 获取当前最大题目顺序
+        Integer maxOrder = jdbcTemplate.queryForObject(
+                "SELECT COALESCE(MAX(question_order), 0) FROM exam_question WHERE exam_id = ?",
+                Integer.class, examId);
+
+        // 添加题目
+        for (Map<String, Object> question : questions) {
+            Long questionId = Long.valueOf(question.get("questionId").toString());
+            Integer score = Integer.valueOf(question.get("score").toString());
+
+            jdbcTemplate.update(
+                    "INSERT INTO exam_question (exam_id, question_id, question_score, question_order) VALUES (?, ?, ?, ?)",
+                    examId, questionId, score, ++maxOrder);
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void removeQuestionFromExam(Long examId, Long questionId) {
+        jdbcTemplate.update(
+                "DELETE FROM exam_question WHERE exam_id = ? AND id = ?",
+                examId, questionId);
+    }
+
     /**
      * 获取当前登录用户
      */
@@ -342,5 +391,35 @@ public class ExamServiceImpl implements ExamService {
         }
 
         return user;
+    }
+
+    @Override
+    public Map<String, Object> getExamRecords(Long examId) {
+        // 验证考试是否存在
+        Exam exam = examMapper.selectById(examId);
+        if (exam == null) {
+            throw new BusinessException("考试不存在");
+        }
+
+        // 查询所有考试记录
+        List<ExamRecord> records = examRecordMapper.selectList(
+                new LambdaQueryWrapper<ExamRecord>()
+                        .eq(ExamRecord::getExamId, examId)
+                        .orderByDesc(ExamRecord::getSubmitTime)
+        );
+
+        // 查询统计信息
+        List<Map<String, Object>> statistics = jdbcTemplate.queryForList(
+                "SELECT COUNT(*) as total, " +
+                "COUNT(CASE WHEN status = 2 THEN 1 END) as submitted, " +
+                "AVG(CASE WHEN status = 2 THEN score END) as avgScore, " +
+                "MAX(CASE WHEN status = 2 THEN score END) as maxScore, " +
+                "MIN(CASE WHEN status = 2 THEN score END) as minScore " +
+                "FROM exam_record WHERE exam_id = ?", examId);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("records", records);
+        result.put("statistics", statistics.isEmpty() ? null : statistics.get(0));
+        return result;
     }
 }

@@ -35,6 +35,8 @@ request.interceptors.response.use(
     // 如果返回的状态码不是 200，说明接口有问题
     if (res.code !== 200) {
       ElMessage.error(res.message || '请求失败')
+      // log full response for debugging backend errors (helps find NPE stack traces)
+      console.error('API response error:', res)
       
       // 401: 未登录或 token 过期
       if (res.code === 401) {
@@ -56,6 +58,10 @@ request.interceptors.response.use(
   },
   (error) => {
     console.error('响应错误:', error)
+    // log backend response body for diagnostics (stack traces / error messages)
+    if (error.response) {
+      console.error('Response data:', error.response.data)
+    }
     
     let message = '网络错误，请稍后重试'
     if (error.response) {

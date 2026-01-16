@@ -38,8 +38,9 @@ public class QuestionController {
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize,
             @RequestParam(required = false) Long questionTypeId,
-            @RequestParam(required = false) Long courseId) {
-        Page<QuestionVO> page = questionService.getQuestionList(pageNum, pageSize, questionTypeId, courseId);
+            @RequestParam(required = false) Long courseId,
+            @RequestParam(required = false) Integer difficulty) {
+        Page<QuestionVO> page = questionService.getQuestionList(pageNum, pageSize, questionTypeId, courseId, difficulty);
         return Result.success(page);
     }
 

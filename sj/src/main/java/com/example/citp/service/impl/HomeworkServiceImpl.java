@@ -121,6 +121,9 @@ public class HomeworkServiceImpl implements HomeworkService {
             ClassEntity classEntity = classMapper.selectById(homework.getClassId());
             if (classEntity != null) {
                 vo.setClassName(classEntity.getClassName());
+            } else {
+                // 班级记录不存在，设置默认名称
+                vo.setClassName("班级已删除");
             }
         }
         
@@ -369,6 +372,9 @@ public class HomeworkServiceImpl implements HomeworkService {
             ClassEntity classEntity = classMapper.selectById(homework.getClassId());
             if (classEntity != null) {
                 vo.setClassName(classEntity.getClassName());
+            } else {
+                // 班级记录不存在，设置默认名称
+                vo.setClassName("班级已删除");
             }
         }
         

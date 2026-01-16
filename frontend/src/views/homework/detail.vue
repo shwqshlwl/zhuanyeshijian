@@ -21,7 +21,7 @@
         <el-descriptions :column="3" border>
           <el-descriptions-item label="作业标题">{{ homework.homeworkTitle }}</el-descriptions-item>
           <el-descriptions-item label="所属课程">{{ homework.courseName }}</el-descriptions-item>
-          <el-descriptions-item label="所属班级">{{ homework.className || '全部班级' }}</el-descriptions-item>
+          <el-descriptions-item label="所属班级">{{ homework.className || (homework.classId ? '班级信息缺失' : '全部班级') }}</el-descriptions-item>
           <el-descriptions-item label="开始时间">{{ homework.startTime || '-' }}</el-descriptions-item>
           <el-descriptions-item label="截止时间">{{ homework.endTime }}</el-descriptions-item>
           <el-descriptions-item label="总分">{{ homework.totalScore || 100 }} 分</el-descriptions-item>

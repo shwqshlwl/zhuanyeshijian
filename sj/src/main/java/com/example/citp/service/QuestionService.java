@@ -20,7 +20,7 @@ public interface QuestionService {
     /**
      * 分页查询题目列表
      */
-    Page<QuestionVO> getQuestionList(Integer pageNum, Integer pageSize, Long questionTypeId, Long courseId);
+    Page<QuestionVO> getQuestionList(Integer pageNum, Integer pageSize, Long questionTypeId, Long courseId, Integer difficulty);
 
     /**
      * 创建题目

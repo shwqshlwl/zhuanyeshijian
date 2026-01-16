@@ -51,4 +51,24 @@ public interface ExamService {
      * 考试结果分析
      */
     Map<String, Object> getExamAnalysis(Long examId);
+
+    /**
+     * 获取考试题目列表
+     */
+    java.util.List<Map<String, Object>> getExamQuestions(Long examId);
+
+    /**
+     * 添加题目到考试
+     */
+    void addQuestionsToExam(Long examId, java.util.List<Map<String, Object>> questions);
+
+    /**
+     * 从考试中移除题目
+     */
+    void removeQuestionFromExam(Long examId, Long questionId);
+
+    /**
+     * 获取考试记录列表
+     */
+    Map<String, Object> getExamRecords(Long examId);
 }

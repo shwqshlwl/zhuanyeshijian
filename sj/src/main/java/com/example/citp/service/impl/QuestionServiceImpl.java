@@ -42,15 +42,18 @@ public class QuestionServiceImpl implements QuestionService {
     }
 
     @Override
-    public Page<QuestionVO> getQuestionList(Integer pageNum, Integer pageSize, Long questionTypeId, Long courseId) {
+    public Page<QuestionVO> getQuestionList(Integer pageNum, Integer pageSize, Long questionTypeId, Long courseId, Integer difficulty) {
         Page<QuestionBank> page = new Page<>(pageNum, pageSize);
-        
+
         LambdaQueryWrapper<QuestionBank> wrapper = new LambdaQueryWrapper<>();
         if (questionTypeId != null) {
             wrapper.eq(QuestionBank::getQuestionTypeId, questionTypeId);
         }
         if (courseId != null) {
             wrapper.eq(QuestionBank::getCourseId, courseId);
+        }
+        if (difficulty != null) {
+            wrapper.eq(QuestionBank::getDifficulty, difficulty);
         }
         wrapper.orderByDesc(QuestionBank::getCreateTime);
 

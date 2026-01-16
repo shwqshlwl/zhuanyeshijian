@@ -84,4 +84,32 @@ public class ExamController {
         Map<String, Object> analysis = examService.getExamAnalysis(id);
         return Result.success(analysis);
     }
+
+    @GetMapping("/{id}/questions")
+    @Operation(summary = "获取考试题目列表")
+    public Result<java.util.List<Map<String, Object>>> getExamQuestions(@PathVariable Long id) {
+        java.util.List<Map<String, Object>> questions = examService.getExamQuestions(id);
+        return Result.success(questions);
+    }
+
+    @PostMapping("/{id}/questions")
+    @Operation(summary = "添加题目到考试")
+    public Result<Void> addQuestionsToExam(@PathVariable Long id, @RequestBody java.util.List<Map<String, Object>> questions) {
+        examService.addQuestionsToExam(id, questions);
+        return Result.successMsg("添加成功");
+    }
+
+    @DeleteMapping("/{id}/questions/{questionId}")
+    @Operation(summary = "从考试中移除题目")
+    public Result<Void> removeQuestionFromExam(@PathVariable Long id, @PathVariable Long questionId) {
+        examService.removeQuestionFromExam(id, questionId);
+        return Result.successMsg("移除成功");
+    }
+
+    @GetMapping("/{id}/records")
+    @Operation(summary = "获取考试记录列表")
+    public Result<Map<String, Object>> getExamRecords(@PathVariable Long id) {
+        Map<String, Object> records = examService.getExamRecords(id);
+        return Result.success(records);
+    }
 }

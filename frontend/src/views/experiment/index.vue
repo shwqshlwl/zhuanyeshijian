@@ -105,7 +105,8 @@ const fetchList = async () => {
 
 const fetchCourses = async () => {
   const res = await getCourseList({ pageNum: 1, pageSize: 100 })
-  courseOptions.value = res.data?.records || []
+  const records = res.data?.records || []
+  courseOptions.value = records.map(c => ({ id: c.id, name: c.courseName || c.name }))
 }
 
 const handleSearch = () => { pageNum.value = 1; fetchList() }

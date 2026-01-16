@@ -19,14 +19,14 @@
     </div>
 
     <el-table :data="examList" v-loading="loading" stripe>
-      <el-table-column prop="title" label="考试名称" min-width="200">
+      <el-table-column prop="examName" label="考试名称" min-width="200">
         <template #default="{ row }">
-          <el-link type="primary" @click="$router.push(`/exams/${row.id}`)">{{ row.title }}</el-link>
+          <el-link type="primary" @click="$router.push(`/exams/${row.id}`)">{{ row.examName }}</el-link>
         </template>
       </el-table-column>
       <el-table-column prop="courseName" label="所属课程" width="150" />
       <el-table-column prop="className" label="关联班级" width="120">
-        <template #default="{ row }">{{ row.className || '全部' }}</template>
+        <template #default="{ row }">{{ row.className || (row.classId ? '班级信息缺失' : '全部') }}</template>
       </el-table-column>
       <el-table-column prop="startTime" label="开始时间" width="180" />
       <el-table-column prop="duration" label="时长(分钟)" width="100" />
@@ -71,8 +71,8 @@
 
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑考试' : '创建考试'" width="650px">
       <el-form ref="formRef" :model="examForm" :rules="formRules" label-width="100px">
-        <el-form-item label="考试名称" prop="title">
-          <el-input v-model="examForm.title" placeholder="请输入考试名称" />
+        <el-form-item label="考试名称" prop="examName">
+          <el-input v-model="examForm.examName" placeholder="请输入考试名称" />
         </el-form-item>
         <el-row :gutter="20">
           <el-col :span="12">
@@ -95,22 +95,43 @@
             end-placeholder="结束时间" style="width: 100%" />
         </el-form-item>
         <el-row :gutter="20">
-          <el-col :span="8">
+          <el-col :span="10">
             <el-form-item label="考试时长" prop="duration">
               <el-input-number v-model="examForm.duration" :min="10" :max="300" style="width: 100%" />
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col :span="7">
             <el-form-item label="总分">
               <el-input-number v-model="examForm.totalScore" :min="1" :max="200" style="width: 100%" />
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col :span="7">
             <el-form-item label="及格分">
               <el-input-number v-model="examForm.passScore" :min="0" :max="200" style="width: 100%" />
             </el-form-item>
           </el-col>
         </el-row>
+      <el-row :gutter="20" style="margin-top: 8px">
+        <el-col :span="8">
+          <el-form-item label="考试类型" prop="examType">
+            <el-select v-model="examForm.examType" placeholder="请选择类型" style="width: 100%">
+              <el-option label="随堂测验" :value="1" />
+              <el-option label="期中考试" :value="2" />
+              <el-option label="期末考试" :value="3" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
+          <el-form-item label="乱序出题">
+            <el-switch v-model="examForm.isShuffle" active-value="1" inactive-value="0" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
+          <el-form-item label="显示答案">
+            <el-switch v-model="examForm.showAnswer" active-value="1" inactive-value="0" />
+          </el-form-item>
+        </el-col>
+      </el-row>
         <el-form-item label="考试说明">
           <el-input v-model="examForm.description" type="textarea" :rows="3" placeholder="考试说明（选填）" />
         </el-form-item>
@@ -147,12 +168,15 @@ const isEdit = ref(false)
 const submitLoading = ref(false)
 const formRef = ref()
 const currentId = ref(null)
-const examForm = reactive({ 
-  title: '', courseId: '', classId: '', timeRange: [], 
-  duration: 90, totalScore: 100, passScore: 60, description: '' 
+const examForm = reactive({
+  examName: '', courseId: '', classId: '', timeRange: [],
+  duration: 90, totalScore: 100, passScore: 60, description: '',
+  examType: 1,
+  isShuffle: 0,
+  showAnswer: 0
 })
 const formRules = {
-  title: [{ required: true, message: '请输入考试名称', trigger: 'blur' }],
+  examName: [{ required: true, message: '请输入考试名称', trigger: 'blur' }],
   courseId: [{ required: true, message: '请选择课程', trigger: 'change' }],
   timeRange: [{ required: true, message: '请选择考试时间', trigger: 'change' }]
 }
@@ -170,7 +194,9 @@ const fetchList = async () => {
 
 const fetchCourses = async () => {
   const res = await getCourseList({ pageNum: 1, pageSize: 100 })
-  courseOptions.value = res.data?.records || []
+  // map backend field names (courseName) to frontend expected { id, name }
+  const records = res.data?.records || []
+  courseOptions.value = records.map(c => ({ id: c.id, name: c.courseName || c.name }))
 }
 
 const fetchClassesByCourse = async (courseId) => {
@@ -179,8 +205,12 @@ const fetchClassesByCourse = async (courseId) => {
     return
   }
   try {
+    console.log('Fetching classes for courseId=', courseId)
     const res = await request({ url: `/classes/course/${courseId}`, method: 'get' })
-    classOptions.value = res.data || []
+    console.log('Classes API response:', res)
+    const records = res.data || []
+    // map backend className to name
+    classOptions.value = records.map(cls => ({ id: cls.id, name: cls.className || cls.name }))
   } catch (e) {
     classOptions.value = []
   }
@@ -194,8 +224,14 @@ const handleCourseChange = (courseId) => {
 const onFormCourseChange = (courseId) => {
   examForm.classId = ''
   if (courseId) {
+    console.log('Form course change, courseId=', courseId)
     request({ url: `/classes/course/${courseId}`, method: 'get' }).then(res => {
-      formClassOptions.value = res.data || []
+      console.log('Form classes API response:', res)
+      const records = res.data || []
+      formClassOptions.value = records.map(cls => ({ id: cls.id, name: cls.className || cls.name }))
+    }).catch(err => {
+      console.error('Failed to fetch form classes', err)
+      formClassOptions.value = []
     })
   } else {
     formClassOptions.value = []
@@ -208,10 +244,17 @@ const handleAdd = () => {
   isEdit.value = false
   currentId.value = null
   Object.assign(examForm, { 
-    title: '', courseId: '', classId: '', timeRange: [], 
-    duration: 90, totalScore: 100, passScore: 60, description: '' 
+    examName: '', courseId: '', classId: '', timeRange: [], 
+    duration: 90, totalScore: 100, passScore: 60, description: '',
+    examType: 1, isShuffle: 0, showAnswer: 0
   })
-  formClassOptions.value = []
+  // 如果左侧筛选已选择了课程，则默认带入到创建表单并加载班级
+  if (searchForm.courseId) {
+    examForm.courseId = searchForm.courseId
+    onFormCourseChange(searchForm.courseId)
+  } else {
+    formClassOptions.value = []
+  }
   dialogVisible.value = true
 }
 
@@ -219,9 +262,10 @@ const handleEdit = (row) => {
   isEdit.value = true
   currentId.value = row.id
   Object.assign(examForm, {
-    title: row.title, courseId: row.courseId, classId: row.classId,
-    timeRange: [row.startTime, row.endTime], duration: row.duration, 
-    totalScore: row.totalScore, passScore: row.passScore || 60, description: row.description
+    examName: row.examName, courseId: row.courseId, classId: row.classId,
+    timeRange: [row.startTime, row.endTime], duration: row.duration,
+    totalScore: row.totalScore, passScore: row.passScore || 60, description: row.description,
+    examType: row.examType || 1, isShuffle: row.isShuffle || 0, showAnswer: row.showAnswer || 0
   })
   if (row.courseId) {
     onFormCourseChange(row.courseId)
@@ -282,6 +326,29 @@ onMounted(() => { fetchList(); fetchCourses() })
     margin-top: 16px;
     display: flex;
     justify-content: flex-end;
+  }
+}
+
+/* Fix input-number layout in create/edit dialog to ensure numbers visible and buttons spaced */
+.exam-container {
+  .el-dialog {
+    .el-input-number {
+      display: inline-flex;
+      align-items: center;
+      /* ensure component has enough room inside small columns */
+      min-width: 110px;
+    }
+
+    .el-input-number__input {
+      min-width: 56px;
+      text-align: center;
+      color: #303133;
+    }
+
+    .el-input-number__decrease,
+    .el-input-number__increase {
+      margin: 0 6px;
+    }
   }
 }
 </style>
