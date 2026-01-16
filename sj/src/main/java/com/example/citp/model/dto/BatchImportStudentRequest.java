@@ -14,8 +14,7 @@ import java.util.List;
 @Schema(description = "批量导入学生请求")
 public class BatchImportStudentRequest {
 
-    @NotNull(message = "课程ID不能为空")
-    @Schema(description = "课程ID")
+    @Schema(description = "课程ID（可选）")
     private Long courseId;
 
     @NotNull(message = "班级ID不能为空")

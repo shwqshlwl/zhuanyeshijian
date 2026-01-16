@@ -20,8 +20,8 @@ INSERT IGNORE INTO question_type (id, type_name, type_code, description) VALUES
 -- 插入默认管理员用户（密码：123456）
 -- BCrypt 加密后的 123456
 INSERT INTO sys_user (id, username, password, real_name, email, user_type, status) VALUES
-(1, 'admin', '$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36Zf4a/G/ZqK7.U7AxNqKGe', '系统管理员', 'admin@example.com', 3, 1)
-ON DUPLICATE KEY UPDATE password = '$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36Zf4a/G/ZqK7.U7AxNqKGe';
+(1, 'admin', '$2a$10$nkPc6JHjXvFftvo8kSlnvOMsibJ7wAJyWFcG6yK7IOskjk6e88Xcy', '系统管理员', 'admin@example.com', 3, 1)
+ON DUPLICATE KEY UPDATE password = '$2a$10$nkPc6JHjXvFftvo8kSlnvOMsibJ7wAJyWFcG6yK7IOskjk6e88Xcy';
 
 -- 关联管理员角色（忽略重复）
 INSERT IGNORE INTO sys_user_role (user_id, role_id) VALUES (1, 1);

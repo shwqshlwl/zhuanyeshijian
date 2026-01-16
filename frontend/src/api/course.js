@@ -35,6 +35,15 @@ export function updateCourse(id, data) {
   })
 }
 
+// 更新课程状态
+export function updateCourseStatus(id, status) {
+  return request({
+    url: `/courses/${id}/status`,
+    method: 'put',
+    params: { status }
+  })
+}
+
 // 删除课程
 export function deleteCourse(id) {
   return request({

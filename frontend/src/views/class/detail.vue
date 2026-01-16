@@ -39,8 +39,8 @@
           </div>
         </template>
         <el-table :data="relatedCourses" stripe>
-          <el-table-column prop="name" label="课程名称" />
-          <el-table-column prop="code" label="课程编码" width="150" />
+          <el-table-column prop="courseName" label="课程名称" />
+          <el-table-column prop="courseCode" label="课程编码" width="150" />
           <el-table-column prop="teacherName" label="授课教师" width="120" />
           <el-table-column prop="credit" label="学分" width="80" />
           <el-table-column label="操作" width="100" v-if="userStore.isTeacher">
@@ -140,9 +140,9 @@
       <el-form :model="bindCourseForm" label-width="80px">
         <el-form-item label="选择课程">
           <el-select v-model="bindCourseForm.courseId" placeholder="请选择课程" style="width: 100%" filterable>
-            <el-option v-for="c in availableCourses" :key="c.id" :label="c.name" :value="c.id">
-              <span>{{ c.name }}</span>
-              <span style="color: #909399; margin-left: 8px">{{ c.code }}</span>
+            <el-option v-for="c in availableCourses" :key="c.id" :label="c.courseName" :value="c.id">
+              <span>{{ c.courseName }}</span>
+              <span style="color: #909399; margin-left: 8px">{{ c.courseCode }}</span>
             </el-option>
           </el-select>
         </el-form-item>
@@ -364,7 +364,7 @@ const handleBindCourse = async () => {
 
 // 取消关联课程
 const handleUnbindCourse = (row) => {
-  ElMessageBox.confirm(`确定要取消关联课程"${row.name}"吗？`, '提示', { type: 'warning' }).then(async () => {
+  ElMessageBox.confirm(`确定要取消关联课程"${row.courseName}"吗？`, '提示', { type: 'warning' }).then(async () => {
     await request({
       url: `/classes/${classId}/unbindCourse/${row.id}`,
       method: 'delete'

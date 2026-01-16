@@ -2,7 +2,7 @@
   <div class="course-detail">
     <el-page-header @back="$router.back()">
       <template #content>
-        <span>{{ course.name || '课程详情' }}</span>
+        <span>{{ course.courseName || '课程详情' }}</span>
         <el-tag :type="statusType" style="margin-left: 12px">{{ statusText }}</el-tag>
       </template>
     </el-page-header>
@@ -19,13 +19,16 @@
           </div>
         </template>
         <el-descriptions :column="3" border>
-          <el-descriptions-item label="课程名称">{{ course.name }}</el-descriptions-item>
-          <el-descriptions-item label="课程编码">{{ course.code }}</el-descriptions-item>
+          <el-descriptions-item label="课程名称">{{ course.courseName }}</el-descriptions-item>
+          <el-descriptions-item label="课程编码">{{ course.courseCode }}</el-descriptions-item>
           <el-descriptions-item label="授课教师">{{ course.teacherName }}</el-descriptions-item>
           <el-descriptions-item label="学分">{{ course.credit }}</el-descriptions-item>
           <el-descriptions-item label="总学时">{{ course.totalHours || '-' }}</el-descriptions-item>
           <el-descriptions-item label="学期">{{ course.semester || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="课程描述" :span="3">{{ course.description || '暂无描述' }}</el-descriptions-item>
+          <el-descriptions-item label="课程描述" :span="3">
+            <div v-if="course.description" v-html="course.description" class="course-description"></div>
+            <span v-else>暂无描述</span>
+          </el-descriptions-item>
         </el-descriptions>
       </el-card>
 
@@ -132,13 +135,13 @@
     </div>
 
     <!-- 编辑课程对话框 -->
-    <el-dialog v-model="showEditDialog" title="编辑课程" width="600px">
+    <el-dialog v-model="showEditDialog" title="编辑课程" width="900px">
       <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="80px">
-        <el-form-item label="课程名称" prop="name">
-          <el-input v-model="editForm.name" placeholder="请输入课程名称" />
+        <el-form-item label="课程名称" prop="courseName">
+          <el-input v-model="editForm.courseName" placeholder="请输入课程名称" />
         </el-form-item>
-        <el-form-item label="课程编码" prop="code">
-          <el-input v-model="editForm.code" placeholder="请输入课程编码" />
+        <el-form-item label="课程编码" prop="courseCode">
+          <el-input v-model="editForm.courseCode" placeholder="请输入课程编码" />
         </el-form-item>
         <el-row :gutter="20">
           <el-col :span="8">
@@ -165,7 +168,7 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="课程描述">
-          <el-input v-model="editForm.description" type="textarea" :rows="4" placeholder="请输入课程描述" />
+          <WangEditor v-model="editForm.description" placeholder="请输入课程描述" height="400px" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -175,17 +178,8 @@
     </el-dialog>
 
     <!-- 编辑大纲对话框 -->
-    <el-dialog v-model="showSyllabusDialog" title="编辑课程大纲" width="800px">
-      <el-input
-        v-model="syllabusContent"
-        type="textarea"
-        :rows="15"
-        placeholder="请输入课程大纲内容，支持HTML格式"
-      />
-      <div class="syllabus-tips">
-        <p>提示：您可以使用HTML标签来格式化内容，例如：</p>
-        <code>&lt;h3&gt;第一章 绑论&lt;/h3&gt;&lt;ul&gt;&lt;li&gt;1.1 课程介绍&lt;/li&gt;&lt;/ul&gt;</code>
-      </div>
+    <el-dialog v-model="showSyllabusDialog" title="编辑课程大纲" width="900px">
+      <WangEditor v-model="syllabusContent" placeholder="请输入课程大纲内容" height="500px" />
       <template #footer>
         <el-button @click="showSyllabusDialog = false">取消</el-button>
         <el-button type="primary" :loading="syllabusLoading" @click="handleSaveSyllabus">保存</el-button>
@@ -229,11 +223,11 @@ const showEditDialog = ref(false)
 const editLoading = ref(false)
 const editFormRef = ref()
 const editForm = reactive({
-  name: '', code: '', credit: 2, totalHours: 0, semester: '', status: 1, description: ''
+  courseName: '', courseCode: '', credit: 2, totalHours: 0, semester: '', status: 1, description: ''
 })
 const editRules = {
-  name: [{ required: true, message: '请输入课程名称', trigger: 'blur' }],
-  code: [{ required: true, message: '请输入课程编码', trigger: 'blur' }]
+  courseName: [{ required: true, message: '请输入课程名称', trigger: 'blur' }],
+  courseCode: [{ required: true, message: '请输入课程编码', trigger: 'blur' }]
 }
 
 // 编辑大纲
@@ -286,8 +280,8 @@ const fetchExams = async () => {
 // 编辑课程
 const handleEdit = () => {
   Object.assign(editForm, {
-    name: course.value.name,
-    code: course.value.code,
+    courseName: course.value.courseName,
+    courseCode: course.value.courseCode,
     credit: course.value.credit,
     totalHours: course.value.totalHours,
     semester: course.value.semester,
@@ -349,7 +343,25 @@ onMounted(() => {
     justify-content: space-between;
     align-items: center;
   }
-  
+
+  .course-description {
+    line-height: 1.8;
+    color: #606266;
+
+    :deep(p) {
+      margin: 8px 0;
+    }
+
+    :deep(ul), :deep(ol) {
+      padding-left: 20px;
+      margin: 8px 0;
+    }
+
+    :deep(li) {
+      margin: 4px 0;
+    }
+  }
+
   .syllabus-content {
     line-height: 1.8;
     color: #606266;

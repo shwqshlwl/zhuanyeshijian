@@ -52,7 +52,18 @@
           </el-button>
         </el-form-item>
       </el-form>
-      
+
+      <el-alert
+        title="学生账号说明"
+        type="info"
+        :closable="false"
+        class="student-tips"
+      >
+        <template #default>
+          学生账号由教师批量创建，请联系您的任课教师获取账号和密码
+        </template>
+      </el-alert>
+
       <div class="login-footer">
         <span>还没有账号？</span>
         <router-link to="/register" class="register-link">教师注册</router-link>
@@ -233,9 +244,25 @@ const handleLogin = async () => {
   border-radius: 8px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border: none;
-  
+
   &:hover {
     background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
+  }
+}
+
+.student-tips {
+  margin-top: 20px;
+  border-radius: 8px;
+
+  :deep(.el-alert__title) {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  :deep(.el-alert__content) {
+    font-size: 13px;
+    line-height: 1.6;
+    color: #606266;
   }
 }
 

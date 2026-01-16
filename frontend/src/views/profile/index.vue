@@ -3,7 +3,22 @@
     <el-tabs v-model="activeTab">
       <el-tab-pane label="个人信息" name="info">
         <el-card>
-          <div class="user-profile">
+          <template #header>
+            <div class="card-header">
+              <span>个人信息</span>
+              <el-button
+                v-if="!editMode"
+                type="primary"
+                size="small"
+                @click="handleEnterEdit"
+              >
+                <el-icon><Edit /></el-icon>编辑信息
+              </el-button>
+            </div>
+          </template>
+
+          <!-- 查看模式 -->
+          <div v-if="!editMode" class="user-profile">
             <div class="avatar-section">
               <el-avatar :size="100" class="user-avatar">
                 {{ userStore.realName?.charAt(0) || userStore.username?.charAt(0) || 'U' }}
@@ -24,6 +39,30 @@
               <el-descriptions-item label="注册时间">{{ userInfo.createTime }}</el-descriptions-item>
             </el-descriptions>
           </div>
+
+          <!-- 编辑模式 -->
+          <el-form
+            v-else
+            ref="editFormRef"
+            :model="editForm"
+            :rules="editRules"
+            label-width="100px"
+            style="max-width: 500px; margin-top: 20px"
+          >
+            <el-form-item label="真实姓名" prop="realName">
+              <el-input v-model="editForm.realName" placeholder="请输入真实姓名" />
+            </el-form-item>
+            <el-form-item label="邮箱" prop="email">
+              <el-input v-model="editForm.email" placeholder="请输入邮箱" />
+            </el-form-item>
+            <el-form-item label="手机号" prop="phone">
+              <el-input v-model="editForm.phone" placeholder="请输入手机号" />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" :loading="editLoading" @click="handleSaveEdit">保存</el-button>
+              <el-button @click="handleCancelEdit">取消</el-button>
+            </el-form-item>
+          </el-form>
         </el-card>
       </el-tab-pane>
 
@@ -53,7 +92,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { getUserInfo, changePassword } from '@/api/user'
+import { getUserInfo, changePassword, updateUserInfo } from '@/api/user'
 import { ElMessage } from 'element-plus'
 
 const route = useRoute()
@@ -62,6 +101,29 @@ const activeTab = ref(route.query.tab || 'info')
 const loading = ref(false)
 const userInfo = ref({})
 
+// 编辑个人信息相关
+const editMode = ref(false)
+const editLoading = ref(false)
+const editFormRef = ref()
+const editForm = reactive({
+  realName: '',
+  email: '',
+  phone: ''
+})
+
+const editRules = {
+  realName: [{ required: true, message: '请输入真实姓名', trigger: 'blur' }],
+  email: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
+    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+  ],
+  phone: [
+    { required: true, message: '请输入手机号', trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
+  ]
+}
+
+// 修改密码相关
 const passwordFormRef = ref()
 const passwordForm = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
 
@@ -92,6 +154,36 @@ const fetchUserInfo = async () => {
   } catch (e) {}
 }
 
+const handleEnterEdit = () => {
+  Object.assign(editForm, {
+    realName: userInfo.value.realName || '',
+    email: userInfo.value.email || '',
+    phone: userInfo.value.phone || ''
+  })
+  editMode.value = true
+}
+
+const handleSaveEdit = async () => {
+  await editFormRef.value?.validate(async (valid) => {
+    if (valid) {
+      editLoading.value = true
+      try {
+        await updateUserInfo(editForm)
+        ElMessage.success('保存成功')
+        await fetchUserInfo()
+        await userStore.fetchUserInfo()
+        editMode.value = false
+      } finally {
+        editLoading.value = false
+      }
+    }
+  })
+}
+
+const handleCancelEdit = () => {
+  editMode.value = false
+}
+
 const handleChangePassword = async () => {
   await passwordFormRef.value?.validate(async (valid) => {
     if (valid) {
@@ -115,27 +207,47 @@ onMounted(() => fetchUserInfo())
 
 <style lang="scss" scoped>
 .profile-container {
-  max-width: 800px;
-  
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 16px;
+    font-weight: 500;
+  }
+
   .user-profile {
     .avatar-section {
       text-align: center;
       padding: 30px 0;
       border-bottom: 1px solid #f0f0f0;
       margin-bottom: 20px;
-      
+
       .user-avatar {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: #fff;
         font-size: 36px;
       }
-      
+
       .user-name {
         margin: 16px 0 8px;
         font-size: 20px;
         color: #303133;
       }
     }
+  }
+
+  :deep(.el-descriptions) {
+    .el-descriptions__label {
+      width: 150px;
+    }
+  }
+
+  :deep(.el-form) {
+    max-width: 600px;
   }
 }
 </style>

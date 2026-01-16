@@ -8,6 +8,7 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import App from './App.vue'
 import router from './router'
 import './styles/index.scss'
+import WangEditor from './components/WangEditor.vue'
 
 const app = createApp(App)
 
@@ -15,6 +16,9 @@ const app = createApp(App)
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
   app.component(key, component)
 }
+
+// 注册富文本编辑器
+app.component('WangEditor', WangEditor)
 
 app.use(createPinia())
 app.use(router)
