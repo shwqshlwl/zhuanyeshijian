@@ -50,6 +50,7 @@
                 {{ userStore.realName?.charAt(0) || userStore.username?.charAt(0) || 'U' }}
               </el-avatar>
               <span class="user-name">{{ userStore.realName || userStore.username }}</span>
+              <el-tag :type="getRoleTagType()" size="small" class="role-tag">{{ userStore.roleText }}</el-tag>
               <el-icon><ArrowDown /></el-icon>
             </div>
             <template #dropdown>
@@ -123,6 +124,13 @@ const menuRoutes = computed(() => {
 
 const toggleCollapse = () => {
   isCollapse.value = !isCollapse.value
+}
+
+const getRoleTagType = () => {
+  if (userStore.isStudent) return 'info'
+  if (userStore.isTeacher) return 'success'
+  if (userStore.isAdmin) return 'danger'
+  return ''
 }
 
 const handleCommand = (command) => {
@@ -267,6 +275,10 @@ const handleCommand = (command) => {
     margin: 0 8px;
     font-size: 14px;
     color: #303133;
+  }
+
+  .role-tag {
+    margin-right: 8px;
   }
 }
 
