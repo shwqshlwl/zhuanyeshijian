@@ -16,13 +16,23 @@
             {{ q.content }}
             <span class="question-score">({{ q.score }}分)</span>
           </div>
-          <div class="question-options" v-if="q.type === 'SINGLE' || q.type === 'MULTIPLE'">
+          <div class="question-options" v-if="q.type === 'SINGLE' || q.type === 'MULTIPLE' || q.type === 'TRUE_FALSE'">
             <el-radio-group v-if="q.type === 'SINGLE'" v-model="answers[q.id]">
-              <el-radio v-for="opt in q.options" :key="opt.key" :label="opt.key">{{ opt.key }}. {{ opt.value }}</el-radio>
+              <el-radio label="A">A</el-radio>
+              <el-radio label="B">B</el-radio>
+              <el-radio label="C">C</el-radio><
+              <el-radio label="D">D</el-radio>
             </el-radio-group>
-            <el-checkbox-group v-else v-model="answers[q.id]">
-              <el-checkbox v-for="opt in q.options" :key="opt.key" :label="opt.key">{{ opt.key }}. {{ opt.value }}</el-checkbox>
+            <el-checkbox-group v-else-if="q.type === 'MULTIPLE'" v-model="answers[q.id]">
+              <el-checkbox label="A">A</el-checkbox>
+              <el-checkbox label="B">B</el-checkbox>
+              <el-checkbox label="C">C</el-checkbox>
+              <el-checkbox label="D">D</el-checkbox>
             </el-checkbox-group>
+            <el-radio-group v-else-if="q.type === 'TRUE_FALSE'" v-model="answers[q.id]">
+              <el-radio label="A">A. 正确</el-radio>
+              <el-radio label="B">B. 错误</el-radio>
+            </el-radio-group>
           </div>
           <div class="question-answer" v-else>
             <el-input v-model="answers[q.id]" type="textarea" :rows="4" placeholder="请输入答案" />
@@ -40,7 +50,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { startExam, submitExam } from '@/api/exam'
+import { startExam, submitExam, testApi } from '@/api/exam'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const route = useRoute()
@@ -75,7 +85,18 @@ const handleSubmit = () => {
   ElMessageBox.confirm('确定要提交试卷吗？', '提示', { type: 'warning' }).then(async () => {
     submitLoading.value = true
     try {
-      await submitExam(route.params.id, { answers })
+      // 格式化答案数据
+      const formattedAnswers = {}
+      for (const [questionId, answer] of Object.entries(answers)) {
+        if (Array.isArray(answer)) {
+          // 多选题答案用逗号连接
+          formattedAnswers[questionId] = answer.sort().join(',')
+        } else {
+          formattedAnswers[questionId] = answer || ''
+        }
+      }
+
+      await submitExam(route.params.id, { answers: formattedAnswers })
       ElMessage.success('提交成功')
       router.push(`/exams/${route.params.id}`)
     } finally {
@@ -87,12 +108,61 @@ const handleSubmit = () => {
 onMounted(async () => {
   loading.value = true
   try {
+    // 首先测试基本API连接
+    console.log('测试API连接...')
+    const testRes = await testApi()
+    console.log('API测试成功:', testRes)
+
+    console.log('开始调用 startExam API, 考试ID:', route.params.id)
     const res = await startExam(route.params.id)
+    console.log('API 响应成功，完整响应:', res)
+    console.log('响应数据类型:', typeof res)
+    console.log('响应数据结构:', Object.keys(res))
+
+    if (!res || typeof res !== 'object') {
+      console.error('响应数据异常')
+      return
+    }
+
+    console.log('res.data 存在:', !!res.data)
+    if (res.data) {
+      console.log('res.data 类型:', typeof res.data)
+      console.log('res.data 结构:', Object.keys(res.data))
+    }
+
     exam.value = res.data?.exam || {}
     questions.value = res.data?.questions || []
+
+    console.log('设置的考试信息:', exam.value)
+    console.log('设置的题目列表长度:', questions.value.length)
+
     remainingTime.value = (res.data?.remainingTime || exam.value.duration * 60)
-    questions.value.forEach(q => { answers[q.id] = q.type === 'MULTIPLE' ? [] : '' })
+    console.log('设置的剩余时间:', remainingTime.value)
+
+    questions.value.forEach((q, index) => {
+      console.log(`题目 ${index + 1}:`, {
+        id: q.id,
+        type: q.type,
+        content: q.content?.substring(0, 50) + '...'
+      })
+
+      if (q.type === 'MULTIPLE') {
+        answers[q.id] = []
+      } else {
+        answers[q.id] = ''
+      }
+    })
+
+    console.log('答案初始化完成，答案数量:', Object.keys(answers).length)
     startTimer()
+    console.log('考试页面初始化完成')
+  } catch (error) {
+    console.error('考试页面初始化失败:', error)
+    console.error('错误详情:', {
+      message: error.message,
+      stack: error.stack
+    })
+    ElMessage.error('加载考试失败: ' + error.message)
   } finally {
     loading.value = false
   }

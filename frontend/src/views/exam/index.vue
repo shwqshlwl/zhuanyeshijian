@@ -170,7 +170,7 @@ const formRef = ref()
 const currentId = ref(null)
 const examForm = reactive({
   examName: '', courseId: '', classId: '', timeRange: [],
-  duration: 90, totalScore: 100, passScore: 60, description: '',
+  duration: 90, totalScore: 0, passScore: 0, description: '',
   examType: 1,
   isShuffle: 0,
   showAnswer: 0
@@ -245,7 +245,7 @@ const handleAdd = () => {
   currentId.value = null
   Object.assign(examForm, { 
     examName: '', courseId: '', classId: '', timeRange: [], 
-    duration: 90, totalScore: 100, passScore: 60, description: '',
+    duration: 90, totalScore: 0, passScore: 0, description: '',
     examType: 1, isShuffle: 0, showAnswer: 0
   })
   // 如果左侧筛选已选择了课程，则默认带入到创建表单并加载班级

@@ -31,7 +31,10 @@ request.interceptors.request.use(
 request.interceptors.response.use(
   (response) => {
     const res = response.data
-    
+    console.log('响应拦截器收到数据:', res)
+    console.log('响应数据类型:', typeof res)
+    console.log('响应数据结构:', res ? Object.keys(res) : 'null/undefined')
+
     // 如果返回的状态码不是 200，说明接口有问题
     if (res.code !== 200) {
       ElMessage.error(res.message || '请求失败')

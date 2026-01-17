@@ -74,7 +74,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import request from '@/utils/request'
+import { getStudentExams } from '@/api/exam'
+import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 const loading = ref(false)
@@ -85,8 +86,7 @@ const completedList = ref([])
 const fetchMyExams = async () => {
   loading.value = true
   try {
-    // 获取学生的考试列表（根据后端API调整）
-    const res = await request({ url: '/exams/student/my', method: 'get' })
+    const res = await getStudentExams()
     const exams = res.data || []
 
     // 分类：待参加和已完成
@@ -100,6 +100,7 @@ const fetchMyExams = async () => {
     })
   } catch (error) {
     console.error('获取我的考试失败:', error)
+    ElMessage.error('获取我的考试失败，请稍后重试')
   } finally {
     loading.value = false
   }
@@ -133,7 +134,8 @@ const canTakeExam = (exam) => {
 }
 
 const handleTabChange = () => {
-  // Tab切换时可以重新加载数据
+  // Tab切换时重新加载数据
+  fetchMyExams()
 }
 
 const goToTakeExam = (id) => {

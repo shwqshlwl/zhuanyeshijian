@@ -67,3 +67,19 @@ export function getExamAnalysis(id) {
     method: 'get'
   })
 }
+
+// 获取学生的考试列表
+export function getStudentExams() {
+  return request({
+    url: '/exams/student/my',
+    method: 'get'
+  })
+}
+
+// 测试API
+export function testApi() {
+  return request({
+    url: '/exams/test',
+    method: 'get'
+  })
+}

@@ -66,11 +66,11 @@
       </el-card>
 
       <!-- 学生成绩统计（教师视图） -->
-      <el-card class="result-card" v-if="userStore.isTeacher && exam.status === 2">
+      <el-card class="result-card" v-show="userStore.isTeacher && (exam.status === 1 || exam.status === 2)">
         <template #header>
           <div class="card-header">
-            <span>成绩统计分析</span>
-            <el-button type="success" size="small" @click="exportResults">
+            <span>{{ exam.status === 1 ? '实时答题统计' : '成绩统计分析' }}</span>
+            <el-button type="success" size="small" @click="exportResults" :disabled="exam.status === 1">
               <el-icon><Download /></el-icon>导出成绩
             </el-button>
           </div>
@@ -123,25 +123,25 @@
         <!-- 学生成绩列表 -->
         <div class="student-results">
           <h4>学生成绩明细</h4>
-          <el-table :data="examRecords" stripe>
-            <el-table-column prop="studentNo" label="学号" width="120" />
-            <el-table-column prop="studentName" label="姓名" width="100" />
-            <el-table-column prop="submitTime" label="提交时间" width="180" />
-            <el-table-column prop="score" label="得分" width="100">
+          <el-table :data="examRecords" stripe :row-key="row => row.studentId || row.recordId">
+            <el-table-column prop="studentNo" label="学号" min-width="140" />
+            <el-table-column prop="studentName" label="姓名" min-width="160" show-overflow-tooltip />
+            <el-table-column prop="submitTime" label="提交时间" min-width="200" show-overflow-tooltip />
+            <el-table-column prop="score" label="得分" min-width="100">
               <template #default="{ row }">
                 <span :class="{ 'text-danger': row.score < exam.passScore, 'text-success': row.score >= exam.passScore }">
                   {{ row.score !== null ? row.score : '-' }}
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="状态" width="100">
+            <el-table-column label="状态" min-width="100">
               <template #default="{ row }">
                 <el-tag :type="row.status === 0 ? 'info' : row.status === 1 ? 'warning' : 'success'" size="small">
                   {{ row.status === 0 ? '未参加' : row.status === 1 ? '答题中' : '已完成' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="100">
+            <el-table-column label="操作" min-width="100">
               <template #default="{ row }">
                 <el-button type="primary" link size="small" @click="viewStudentAnswer(row)" :disabled="row.status === 0">
                   查看答卷
@@ -150,6 +150,24 @@
             </el-table-column>
           </el-table>
         </div>
+      </el-card>
+
+      <!-- 学生答题进度（学生视图） -->
+      <el-card class="my-progress-card" v-if="userStore.isStudent && exam.status === 1 && myRecord.status === 1">
+        <template #header>
+          <span>答题进度</span>
+        </template>
+        <el-result icon="info" title="正在答题中">
+          <template #extra>
+            <div class="progress-info">
+              <span>已用时：{{ myRecord.duration || 0 }} 分钟</span>
+              <span>考试总时长：{{ exam.duration }} 分钟</span>
+            </div>
+            <el-button type="primary" @click="$router.push(`/exams/${examId}/take`)">
+              继续答题
+            </el-button>
+          </template>
+        </el-result>
       </el-card>
 
       <!-- 学生考试结果（学生视图） -->
@@ -411,12 +429,60 @@ const fetchExamQuestions = async () => {
 const fetchExamRecords = async () => {
   try {
     const res = await request({ url: `/exams/${examId}/records`, method: 'get' })
-    examRecords.value = res.data?.records || []
-    statistics.value = res.data?.statistics || {}
+    // normalize records to expected field names for the table
+    const rawRecords = res.data?.records || []
+    examRecords.value = rawRecords.map(r => ({
+      // try multiple possible backend field shapes
+      studentId: r.studentId ?? r.student_id ?? r.studentId,
+      studentNo: r.studentNo ?? r.student_no ?? r.studentNo ?? r.studentNo ?? '-',
+      studentName: r.studentName ?? r.student_name ?? r.realName ?? r.studentName ?? '-',
+      submitTime: r.submitTime ?? r.submit_time ?? r.submitTime ?? '-',
+      score: r.score ?? null,
+      status: typeof r.status !== 'undefined' ? r.status : (r.status ?? 0),
+      // keep original record for any extra use
+      __raw: r
+    }))
+
+    // normalize statistics fields returned by backend to frontend expected names
+    const s = res.data?.statistics || {}
+    const total = s.total ?? s.totalCount ?? 0
+    const submitted = s.submitted ?? s.submitCount ?? 0
+    statistics.value = {
+      totalCount: total,
+      submitCount: submitted,
+      avgScore: s.avgScore ?? s.avg_score ?? null,
+      maxScore: s.maxScore ?? s.max_score ?? null,
+      minScore: s.minScore ?? s.min_score ?? null,
+      passRate: s.passRate ? s.passRate: 0
+    }
   } catch (e) {
     console.error(e)
   }
 }
+
+// 实时轮询教师端的考试记录（进行中时）
+let recordsTimer = null
+watch(() => exam.value.status, (s) => {
+  // 如果考试进行中且是教师视图，开启轮询
+  if (userStore.isTeacher && s === 1) {
+    fetchExamRecords()
+    if (!recordsTimer) {
+      recordsTimer = setInterval(fetchExamRecords, 10000)
+    }
+  } else {
+    if (recordsTimer) {
+      clearInterval(recordsTimer)
+      recordsTimer = null
+    }
+  }
+})
+
+onUnmounted(() => {
+  if (recordsTimer) {
+    clearInterval(recordsTimer)
+    recordsTimer = null
+  }
+})
 
 // 获取我的考试记录（学生）
 const fetchMyRecord = async () => {
@@ -488,7 +554,9 @@ const handleAddQuestions = async () => {
     })
     ElMessage.success('添加成功')
     showQuestionDialog.value = false
+    // refresh questions list and exam info (total score / pass score)
     fetchExamQuestions()
+    fetchExamDetail()
   } finally {
     addQuestionLoading.value = false
   }
@@ -499,7 +567,9 @@ const removeQuestion = async (row) => {
   try {
     await request({ url: `/exams/${examId}/questions/${row.id}`, method: 'delete' })
     ElMessage.success('移除成功')
+    // refresh questions list and exam info (total score / pass score)
     fetchExamQuestions()
+    fetchExamDetail()
   } catch (e) {
     console.error(e)
   }
@@ -560,8 +630,6 @@ onMounted(() => {
   fetchQuestionTypes()
   if (userStore.isTeacher) {
     fetchExamRecords()
-  } else if (userStore.isStudent) {
-    fetchMyRecord()
   }
 })
 </script>
@@ -572,7 +640,7 @@ onMounted(() => {
     margin-top: 20px;
   }
   
-  .question-card, .result-card, .my-result-card, .action-card {
+  .question-card, .result-card, .my-result-card, .my-progress-card, .action-card {
     margin-bottom: 20px;
   }
   
@@ -742,6 +810,15 @@ onMounted(() => {
     gap: 24px;
     color: #909399;
     font-size: 14px;
+  }
+
+  .progress-info {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    color: #909399;
+    font-size: 14px;
+    margin-bottom: 16px;
   }
   
   // 考试入口

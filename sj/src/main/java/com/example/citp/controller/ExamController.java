@@ -3,6 +3,7 @@ package com.example.citp.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.citp.common.Result;
 import com.example.citp.model.dto.ExamRequest;
+import com.example.citp.model.dto.ExamStartResponseDTO;
 import com.example.citp.model.dto.ExamSubmitRequest;
 import com.example.citp.model.vo.ExamVO;
 import com.example.citp.service.ExamService;
@@ -66,8 +67,8 @@ public class ExamController {
 
     @PostMapping("/{id}/start")
     @Operation(summary = "开始考试")
-    public Result<Map<String, Object>> startExam(@PathVariable Long id) {
-        Map<String, Object> result = examService.startExam(id);
+    public Result<ExamStartResponseDTO> startExam(@PathVariable Long id) {
+        ExamStartResponseDTO result = examService.startExam(id);
         return Result.success(result);
     }
 
@@ -111,5 +112,25 @@ public class ExamController {
     public Result<Map<String, Object>> getExamRecords(@PathVariable Long id) {
         Map<String, Object> records = examService.getExamRecords(id);
         return Result.success(records);
+    }
+
+    @GetMapping("/{id}/records/{studentId}")
+    @Operation(summary = "获取学生单条答卷详情")
+    public Result<java.util.Map<String, Object>> getStudentRecord(@PathVariable Long id, @PathVariable Long studentId) {
+        java.util.Map<String, Object> record = examService.getStudentRecord(id, studentId);
+        return Result.success(record);
+    }
+
+    @GetMapping("/student/my")
+    @Operation(summary = "获取学生的考试列表")
+    public Result<java.util.List<Map<String, Object>>> getStudentExams() {
+        java.util.List<Map<String, Object>> exams = examService.getStudentExams();
+        return Result.success(exams);
+    }
+
+    @GetMapping("/test")
+    @Operation(summary = "测试API")
+    public Result<String> testApi() {
+        return Result.success("API测试成功");
     }
 }
