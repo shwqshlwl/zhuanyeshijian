@@ -30,8 +30,9 @@ public class CourseController {
     public Result<Page<CourseVO>> getCourseList(
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize,
-            @RequestParam(required = false) String keyword) {
-        Page<CourseVO> page = courseService.getCourseList(pageNum, pageSize, keyword);
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer status) {
+        Page<CourseVO> page = courseService.getCourseList(pageNum, pageSize, keyword, status);
         return Result.success(page);
     }
 

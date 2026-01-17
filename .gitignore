@@ -1,0 +1,32 @@
+# Node modules
+frontend/node_modules/
+node_modules/
+
+# Build outputs
+frontend/dist/
+frontend/.vite/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Java
+sj/target/
+sj/.mvn/
+sj/HELP.md
+*.class
+*.jar
+*.war
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp

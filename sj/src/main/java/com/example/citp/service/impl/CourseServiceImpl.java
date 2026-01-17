@@ -36,19 +36,22 @@ public class CourseServiceImpl implements CourseService {
     private final JdbcTemplate jdbcTemplate;
 
     @Override
-    public Page<CourseVO> getCourseList(Integer pageNum, Integer pageSize, String keyword) {
+    public Page<CourseVO> getCourseList(Integer pageNum, Integer pageSize, String keyword, Integer status) {
         Page<Course> page = new Page<>(pageNum, pageSize);
-        
+
         LambdaQueryWrapper<Course> wrapper = new LambdaQueryWrapper<>();
         if (StringUtils.hasText(keyword)) {
             wrapper.like(Course::getCourseName, keyword)
                     .or()
                     .like(Course::getCourseCode, keyword);
         }
+        if (status != null) {
+            wrapper.eq(Course::getStatus, status);
+        }
         wrapper.orderByDesc(Course::getCreateTime);
 
         Page<Course> coursePage = courseMapper.selectPage(page, wrapper);
-        
+
         // 转换为 VO
         Page<CourseVO> voPage = new Page<>(coursePage.getCurrent(), coursePage.getSize(), coursePage.getTotal());
         voPage.setRecords(coursePage.getRecords().stream().map(course -> {

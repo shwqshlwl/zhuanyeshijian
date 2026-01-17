@@ -15,7 +15,7 @@ public interface CourseService {
     /**
      * 分页查询课程列表
      */
-    Page<CourseVO> getCourseList(Integer pageNum, Integer pageSize, String keyword);
+    Page<CourseVO> getCourseList(Integer pageNum, Integer pageSize, String keyword, Integer status);
 
     /**
      * 创建课程
