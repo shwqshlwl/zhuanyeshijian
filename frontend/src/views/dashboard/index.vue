@@ -165,19 +165,31 @@ const getGreeting = () => {
 
 const fetchStats = async () => {
   try {
+    console.log('开始获取首页统计数据...')
     const [courseRes, classRes, homeworkRes, examRes] = await Promise.all([
       getCourseList({ pageNum: 1, pageSize: 1 }),
       getClassList({ pageNum: 1, pageSize: 1 }),
       getHomeworkList({ pageNum: 1, pageSize: 1 }),
       getExamList({ pageNum: 1, pageSize: 1 })
     ])
-    
+
+    console.log('课程API响应:', courseRes)
+    console.log('课程data详情:', courseRes.data)
+    console.log('班级API响应:', classRes)
+    console.log('班级data详情:', classRes.data)
+    console.log('作业API响应:', homeworkRes)
+    console.log('作业data详情:', homeworkRes.data)
+    console.log('考试API响应:', examRes)
+    console.log('考试data详情:', examRes.data)
+
     stats.value = {
       courseCount: courseRes.data?.total || 0,
       classCount: classRes.data?.total || 0,
       homeworkCount: homeworkRes.data?.total || 0,
       examCount: examRes.data?.total || 0
     }
+
+    console.log('统计数据结果:', stats.value)
   } catch (error) {
     console.error('获取统计数据失败:', error)
   }
