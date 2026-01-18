@@ -5,10 +5,10 @@ import com.example.citp.mapper.SysRoleMapper;
 import com.example.citp.mapper.SysUserMapper;
 import com.example.citp.model.entity.SysRole;
 import com.example.citp.model.entity.SysUser;
+import com.example.citp.security.LoginUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -43,14 +43,15 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 .map(role -> new SimpleGrantedAuthority(role.getRoleCode()))
                 .collect(Collectors.toList());
 
-        return User.builder()
-                .username(user.getUsername())
-                .password(user.getPassword())
-                .authorities(authorities)
-                .accountExpired(false)
-                .accountLocked(user.getStatus() == 0)
-                .credentialsExpired(false)
-                .disabled(user.getStatus() == 0)
-                .build();
+        return new LoginUser(
+                user.getId(),
+                user.getUsername(),
+                user.getPassword(),
+                user.getStatus() != 0, // enabled
+                true, // accountNonExpired
+                true, // credentialsNonExpired
+                user.getStatus() != 0, // accountNonLocked (simplified logic, using status for both)
+                authorities
+        );
     }
 }

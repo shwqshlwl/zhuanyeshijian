@@ -56,6 +56,7 @@
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { chatWithAi } from '@/api/ai'
+import { getVisitorId } from '@/utils/visitor'
 
 const props = defineProps({
   modelValue: {
@@ -73,6 +74,7 @@ const router = useRouter()
 
 const visible = ref(false)
 const loading = ref(false)
+const currentSessionId = ref(null)
 const analysisData = ref({
   tags: [],
   thinking: '',
@@ -96,6 +98,7 @@ const handleClose = () => {
 
 const analyzeQuestion = async () => {
   loading.value = true
+  currentSessionId.value = null
   try {
     const prompt = `请分析以下题目，并给出：
 1. 考察的知识点（用逗号分隔）
@@ -114,11 +117,16 @@ ${props.questionContent}
 
     const res = await chatWithAi({ 
       message: prompt,
+      visitorId: getVisitorId(),
       systemPrompt: "你是一个专业的课程助教，擅长分析编程题目。请务必返回严格的JSON格式数据，不要包含Markdown代码块标记。" 
     })
     
+    // API returns { response: "...", sessionId: ..., title: ... }
+    const aiResponse = res.data
+    currentSessionId.value = aiResponse.sessionId
+
     // 尝试解析返回的JSON
-    let jsonStr = res.data
+    let jsonStr = aiResponse.response
     // 清理可能的markdown标记
     jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim()
     
@@ -130,7 +138,7 @@ ${props.questionContent}
       analysisData.value = {
         tags: ['AI分析'],
         thinking: '解析格式异常，直接显示内容：',
-        analysis: res.data
+        analysis: aiResponse.response
       }
     }
   } catch (error) {
@@ -152,12 +160,21 @@ const formatContent = (content) => {
 
 const askMore = () => {
   visible.value = false
-  router.push({ 
-    path: '/ai/chat', 
-    query: { 
-      initialMessage: `关于这道题：“${props.questionContent}”，我有更多疑问。` 
-    } 
-  })
+  if (currentSessionId.value) {
+    router.push({ 
+      path: '/ai/chat', 
+      query: { 
+        id: currentSessionId.value
+      } 
+    })
+  } else {
+    router.push({ 
+      path: '/ai/chat', 
+      query: { 
+        initialMessage: `关于这道题：“${props.questionContent}”，我有更多疑问。` 
+      } 
+    })
+  }
 }
 </script>
 
