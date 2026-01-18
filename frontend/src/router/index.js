@@ -134,10 +134,46 @@ const routes = [
         meta: { title: '实验管理', icon: 'Monitor', roles: ['teacher', 'admin'] }
       },
       {
+        path: 'experiments/create',
+        name: 'ExperimentCreate',
+        component: () => import('@/views/experiment/create.vue'),
+        meta: { title: '创建实验', hidden: true, roles: ['teacher', 'admin'] }
+      },
+      {
+        path: 'experiments/:id/edit',
+        name: 'ExperimentEdit',
+        component: () => import('@/views/experiment/create.vue'),
+        meta: { title: '编辑实验', hidden: true, roles: ['teacher', 'admin'] }
+      },
+      {
         path: 'experiments/:id',
         name: 'ExperimentDetail',
         component: () => import('@/views/experiment/detail.vue'),
         meta: { title: '实验详情', hidden: true, roles: ['student', 'teacher', 'admin'] }
+      },
+      {
+        path: 'experiments/:id/answer',
+        name: 'ExperimentAnswer',
+        component: () => import('@/views/experiment/answer.vue'),
+        meta: { title: '实验答题', hidden: true, roles: ['student'] }
+      },
+      {
+        path: 'experiments/:id/execute',
+        name: 'ExperimentExecute',
+        component: () => import('@/views/experiment/execute.vue'),
+        meta: { title: '代码执行', hidden: true, roles: ['student'] }
+      },
+      {
+        path: 'experiments/:id/result',
+        name: 'ExperimentResult',
+        component: () => import('@/views/experiment/result.vue'),
+        meta: { title: '评测结果', hidden: true, roles: ['student'] }
+      },
+      {
+        path: 'my-experiments',
+        name: 'MyExperiments',
+        component: () => import('@/views/experiment/index.vue'),
+        meta: { title: '我的实验', icon: 'Monitor', roles: ['student'] }
       },
       {
         path: 'profile',

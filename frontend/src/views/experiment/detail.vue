@@ -13,9 +13,14 @@
         <template #header>
           <div class="card-header">
             <span>实验信息</span>
-            <el-button type="primary" size="small" @click="handleEdit" v-if="userStore.isTeacher">
-              <el-icon><Edit /></el-icon>编辑
-            </el-button>
+            <div class="header-actions">
+              <el-button type="success" size="small" @click="$router.push(`/experiments/${experimentId}/answer`)" v-if="userStore.isStudent">
+                <el-icon><Edit /></el-icon>开始答题
+              </el-button>
+              <el-button type="primary" size="small" @click="$router.push(`/experiments/${experimentId}/edit`)" v-if="userStore.isTeacher">
+                <el-icon><Edit /></el-icon>编辑
+              </el-button>
+            </div>
           </div>
         </template>
         <el-descriptions :column="3" border>
@@ -79,6 +84,9 @@
         <div class="code-actions">
           <el-button type="primary" :loading="runLoading" @click="handleRun">
             <el-icon><VideoPlay /></el-icon>运行测试
+          </el-button>
+          <el-button type="info" @click="handleExecute">
+            <el-icon><Monitor /></el-icon>执行页面
           </el-button>
           <el-button type="success" :loading="submitLoading" @click="handleSubmit" 
             :disabled="experiment.status === 2 && !experiment.allowLate">
@@ -244,13 +252,14 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { getExperimentById, submitExperiment } from '@/api/experiment'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 
 const route = useRoute()
+const router = useRouter()
 const userStore = useUserStore()
 const experimentId = route.params.id
 
@@ -413,6 +422,18 @@ const handleRun = async () => {
   }
 }
 
+const handleExecute = () => {
+  if (!code.value.trim()) {
+    ElMessage.warning('请输入代码')
+    return
+  }
+  // 保存代码到本地存储
+  localStorage.setItem(`experiment_${experimentId}_code`, code.value)
+  localStorage.setItem(`experiment_${experimentId}_language`, selectedLanguage.value)
+  // 跳转到执行页面
+  router.push(`/experiments/${experimentId}/execute`)
+}
+
 const handleSubmit = async () => {
   if (!code.value.trim()) {
     ElMessage.warning('请输入代码')
@@ -428,6 +449,10 @@ const handleSubmit = async () => {
     submitResult.value = res.data
     showSubmitResult.value = true
     fetchMySubmissions()
+    // 跳转到评测结果页
+    setTimeout(() => {
+      router.push(`/experiments/${experimentId}/result`)
+    }, 1500)
   } finally {
     submitLoading.value = false
   }
