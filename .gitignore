@@ -1,32 +1,40 @@
-# Node modules
-frontend/node_modules/
+# 依赖目录
 node_modules/
+**/node_modules/
 
-# Build outputs
-frontend/dist/
-frontend/.vite/
+# 构建输出
+dist/
+build/
+target/
+**/dist/
+**/build/
+**/target/
+
+# Vite 缓存（重要！避免绝对路径问题）
+.vite/
+**/.vite/
 
 # IDE
 .idea/
 .vscode/
 *.iml
+*.ipr
+*.iws
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Java
-sj/target/
-sj/.mvn/
-sj/HELP.md
-*.class
-*.jar
-*.war
-
-# Logs
+# 日志
 *.log
 logs/
 
-# Temporary files
+# 临时文件
 *.tmp
-*.temp
+*.bak
+*.swp
+*~
+
+# 环境变量文件（如果包含敏感信息）
+.env.local
+.env.*.local

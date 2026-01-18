@@ -276,7 +276,7 @@ public class SysUserServiceImpl implements SysUserService {
     public UserInfoVO getStudentByStudentNo(String studentNo) {
         SysUser student = sysUserMapper.selectOne(new LambdaQueryWrapper<SysUser>()
                 .eq(SysUser::getStudentNo, studentNo)
-                .eq(SysUser::getUserType, 3));//学生应该是3啊
+                .eq(SysUser::getUserType, 1));//学生应该是3啊
 
         if (student == null) {
             return null;

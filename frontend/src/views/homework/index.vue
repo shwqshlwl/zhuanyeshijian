@@ -2,7 +2,7 @@
   <div class="homework-container">
     <div class="search-bar">
       <el-select v-model="searchForm.courseId" placeholder="选择课程" clearable style="width: 200px">
-        <el-option v-for="c in courseOptions" :key="c.id" :label="c.name" :value="c.id" />
+        <el-option v-for="c in courseOptions" :key="c.id" :label="c.courseName" :value="c.id" />
       </el-select>
       <el-select v-model="searchForm.classId" placeholder="选择班级" clearable style="width: 150px">
         <el-option v-for="cls in classOptions" :key="cls.id" :label="cls.className" :value="cls.id" />
@@ -26,13 +26,13 @@
       </el-table-column>
       <el-table-column prop="courseName" label="所属课程" width="150" />
       <el-table-column prop="className" label="所属班级" width="120">
-        <template #default="{ row }">{{ row.className || (row.classId ? '班级信息缺失' : '全部') }}</template>
+        <template #default="{ row }">{{ row.className || '全部' }}</template>
       </el-table-column>
       <el-table-column prop="endTime" label="截止时间" width="180" />
       <el-table-column label="状态" width="100">
         <template #default="{ row }">
-            <el-tag :type="row.status === 0 ? 'info' : row.status === 1 ? 'success' : 'danger'">
-              {{ row.status === 0 ? '未开始' : row.status === 1 ? '进行中' : '已截止' }}
+          <el-tag :type="row.status === 0 ? 'info' : row.status === 1 ? 'success' : 'danger'">
+            {{ row.status === 0 ? '未开始' : row.status === 1 ? '进行中' : '已截止' }}
           </el-tag>
         </template>
       </el-table-column>
@@ -44,13 +44,13 @@
           </span>
         </template>
       </el-table-column>
-<!--      <el-table-column label="我的状态" width="100" v-if="userStore.isStudent">-->
-<!--        <template #default="{ row }">-->
-<!--          <el-tag :type="row.myStatus === 2 ? 'success' : row.myStatus === 1 ? 'warning' : 'info'" size="small">-->
-<!--            {{ row.myStatus === 2 ? '已批改' : row.myStatus === 1 ? '已提交' : '未提交' }}-->
-<!--          </el-tag>-->
-<!--        </template>-->
-<!--      </el-table-column>-->
+      <!--      <el-table-column label="我的状态" width="100" v-if="userStore.isStudent">-->
+      <!--        <template #default="{ row }">-->
+      <!--          <el-tag :type="row.myStatus === 2 ? 'success' : row.myStatus === 1 ? 'warning' : 'info'" size="small">-->
+      <!--            {{ row.myStatus === 2 ? '已批改' : row.myStatus === 1 ? '已提交' : '未提交' }}-->
+      <!--          </el-tag>-->
+      <!--        </template>-->
+      <!--      </el-table-column>-->
       <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
           <el-button type="primary" link @click="$router.push(`/homeworks/${row.id}`)">详情</el-button>
@@ -80,14 +80,14 @@
           <el-col :span="12">
             <el-form-item label="所属课程" prop="courseId">
               <el-select v-model="homeworkForm.courseId" placeholder="请选择课程" style="width: 100%">
-                <el-option v-for="c in courseOptions" :key="c.id" :label="c.name" :value="c.id" />
+                <el-option v-for="c in courseOptions" :key="c.id" :label="c.courseName" :value="c.id" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="所属班级">
               <el-select v-model="homeworkForm.classId" placeholder="全部班级" clearable style="width: 100%">
-                <el-option v-for="cls in classOptions" :key="cls.id" :label="cls.name" :value="cls.id" />
+                <el-option v-for="cls in classOptions" :key="cls.id" :label="cls.className" :value="cls.id" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -173,6 +173,7 @@ const fetchList = async () => {
   loading.value = true
   try {
     const url = userStore.isStudent ? '/homeworks/student/my' : '/homeworks/listDetailSubmit'
+    console.log(searchForm)
     const res = await request({ url, method: 'get', params: { pageNum: pageNum.value, pageSize: pageSize.value, ...searchForm } })
     homeworkList.value = res.data?.records || []
     console.log(homeworkList.value)
@@ -192,8 +193,7 @@ const fetchStatus = async () => {
 
 const fetchCourses = async () => {
   const res = await getCourseList({ pageNum: 1, pageSize: 100 })
-  const records = res.data?.records || []
-  courseOptions.value = records.map(c => ({ id: c.id, name: c.courseName || c.name }))
+  courseOptions.value = res.data?.records || []
 }
 const fetchClasses = async () => {
   const res = await getClassList({ pageNum: 1, pageSize: 100 })
@@ -207,8 +207,7 @@ const fetchClassesByCourse = async (courseId) => {
   }
   try {
     const res = await request({ url: `/classes/course/${courseId}`, method: 'get' })
-    const records = res.data || []
-    classOptions.value = records.map(cls => ({ id: cls.id, name: cls.className || cls.name }))
+    classOptions.value = res.data || []
   } catch (e) {
     classOptions.value = []
   }

@@ -47,6 +47,9 @@ public class HomeworkController {
             @RequestParam(required = false) Long courseId,
             @RequestParam(required = false) Long classId,
             @RequestParam(required = false) Integer status) {
+        System.out.println(courseId);
+        System.out.println(classId);
+        System.out.println(status);
         Page<HomeworkListDetailVO> page = homeworkService.getHomeworkListDetail(pageNum, pageSize, courseId, classId, status);
         return Result.success(page);
     }
