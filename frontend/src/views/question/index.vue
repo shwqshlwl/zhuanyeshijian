@@ -16,9 +16,9 @@
       <el-button type="primary" @click="handleAdd" v-if="userStore.isTeacher">
         <el-icon><Plus /></el-icon>添加题目
       </el-button>
-      <el-button type="warning" @click="showTypeDialog = true" v-if="userStore.isTeacher">
-        <el-icon><Setting /></el-icon>题型管理
-      </el-button>
+<!--      <el-button type="warning" @click="showTypeDialog = true" v-if="userStore.isTeacher">-->
+<!--        <el-icon><Setting /></el-icon>题型管理-->
+<!--      </el-button>-->
       <el-button type="danger" @click="handleBatchDelete" :disabled="!selectedIds.length" v-if="userStore.isTeacher">
         批量删除
       </el-button>
@@ -174,9 +174,18 @@ const handleEdit = (row) => {
   isEdit.value = true
   currentId.value = row.id
   Object.assign(questionForm, {
-    questionTypeId: row.questionTypeId, courseId: row.courseId, content: row.content,
-    options: row.options || ['', '', '', ''], answer: row.answer, difficulty: row.difficulty, analysis: row.analysis
+    questionTypeId: row.questionTypeId,
+    courseId: row.courseId,
+    content: row.content,
+    options: row.options
+        ? JSON.parse(row.options)
+        : ['', '', '', ''],
+    answer: row.answer,
+    difficulty: row.difficulty,
+    analysis: row.analysis
   })
+  console.log("options: ",row.options)
+  console.log("options: ",questionForm.options)
   dialogVisible.value = true
 }
 
