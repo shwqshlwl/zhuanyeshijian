@@ -38,6 +38,8 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { getAiSessionList, deleteAiSession } from '@/api/ai'
+import { getVisitorId } from '@/utils/visitor'
 
 const router = useRouter()
 const loading = ref(false)
@@ -47,18 +49,30 @@ onMounted(() => {
   fetchHistory()
 })
 
-const fetchHistory = () => {
+const fetchHistory = async () => {
   loading.value = true
-  // 模拟数据
-  setTimeout(() => {
-    historyList.value = [
-      { id: 1, title: '关于Java多线程的问题', messageCount: 5, createTime: '2023-05-20 10:30', lastActiveTime: '2023-05-20 10:45' },
-      { id: 2, title: 'Spring MVC原理解析', messageCount: 12, createTime: '2023-05-19 15:45', lastActiveTime: '2023-05-19 16:20' },
-      { id: 3, title: 'Vue3组合式API使用', messageCount: 8, createTime: '2023-05-18 09:20', lastActiveTime: '2023-05-18 09:50' },
-      { id: 4, title: '数据库索引优化策略', messageCount: 20, createTime: '2023-05-15 14:10', lastActiveTime: '2023-05-15 15:30' },
-    ]
+  try {
+    const res = await getAiSessionList({ visitorId: getVisitorId() })
+    historyList.value = res.data.map(item => ({
+      id: item.id,
+      title: item.title,
+      // API doesn't return messageCount yet, maybe default or fetch details?
+      // For now just hide messageCount or show placeholder
+      messageCount: '-', 
+      createTime: formatTime(item.createTime),
+      lastActiveTime: formatTime(item.updateTime)
+    }))
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('获取历史记录失败')
+  } finally {
     loading.value = false
-  }, 500)
+  }
+}
+
+const formatTime = (timeStr) => {
+  if (!timeStr) return ''
+  return new Date(timeStr).toLocaleString()
 }
 
 const goToChat = (id) => {
@@ -68,9 +82,14 @@ const goToChat = (id) => {
 const deleteHistory = (id) => {
   ElMessageBox.confirm('确定要删除这条会话记录吗？', '提示', {
     type: 'warning'
-  }).then(() => {
-    historyList.value = historyList.value.filter(item => item.id !== id)
-    ElMessage.success('删除成功')
+  }).then(async () => {
+    try {
+      await deleteAiSession(id)
+      historyList.value = historyList.value.filter(item => item.id !== id)
+      ElMessage.success('删除成功')
+    } catch (error) {
+      ElMessage.error('删除失败')
+    }
   })
 }
 </script>

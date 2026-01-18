@@ -90,12 +90,14 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, nextTick, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { chatWithAi } from '@/api/ai'
-import { useRoute } from 'vue-router'
+import { chatWithAi, getAiSessionList, getAiSessionMessages, deleteAiSession } from '@/api/ai'
+import { getVisitorId } from '@/utils/visitor'
+import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
+const router = useRouter()
 const inputMessage = ref('')
 const loading = ref(false)
 const messagesContainer = ref(null)
@@ -111,46 +113,96 @@ const suggestions = [
   '什么是Spring Boot？'
 ]
 
-// 模拟历史数据
-const mockHistory = [
-  { id: 1, title: '关于Java多线程的问题', time: '2023-05-20 10:30' },
-  { id: 2, title: 'Spring MVC原理解析', time: '2023-05-19 15:45' }
-]
+onMounted(async () => {
+  await fetchHistoryList()
+  
+  // Check for session ID from router (from history page)
+  if (route.query.id) {
+    const session = historyList.value.find(h => h.id == route.query.id)
+    if (session) {
+      selectChat(session)
+    } else {
+      // If not in list (maybe new or not loaded), try to fetch directly
+      loadSessionMessages(route.query.id)
+    }
+  }
 
-onMounted(() => {
-  historyList.value = mockHistory
   // Check for initial message from router (e.g. from homework analysis)
   if (route.query.initialMessage) {
+    // If we are already in a session, maybe start a new one? 
+    // Usually initialMessage implies starting a new analysis.
+    createNewChat()
     inputMessage.value = route.query.initialMessage
     handleSend()
   }
 })
+
+const fetchHistoryList = async () => {
+  try {
+    const res = await getAiSessionList({ visitorId: getVisitorId() })
+    historyList.value = res.data.map(item => ({
+      id: item.id,
+      title: item.title,
+      time: formatTime(item.updateTime)
+    }))
+  } catch (error) {
+    console.error('Failed to fetch history:', error)
+  }
+}
+
+const formatTime = (timeStr) => {
+  if (!timeStr) return ''
+  const date = new Date(timeStr)
+  return date.toLocaleString()
+}
 
 const createNewChat = () => {
   currentChatId.value = null
   currentChatTitle.value = '新会话'
   messages.value = []
   inputMessage.value = ''
+  // Clear query param
+  router.replace({ query: {} })
 }
 
 const selectChat = (chat) => {
   currentChatId.value = chat.id
   currentChatTitle.value = chat.title
-  // 模拟加载消息
-  messages.value = [
-    { role: 'user', content: chat.title, time: chat.time },
-    { role: 'assistant', content: '这是一个模拟的回复。在实际应用中，这里会显示AI的详细解答。', time: chat.time }
-  ]
-  scrollToBottom()
+  loadSessionMessages(chat.id)
+}
+
+const loadSessionMessages = async (sessionId) => {
+  currentChatId.value = sessionId
+  loading.value = true
+  try {
+    const res = await getAiSessionMessages(sessionId)
+    messages.value = res.data.map(msg => ({
+      role: msg.role,
+      content: msg.content,
+      time: formatTime(msg.createTime)
+    }))
+    scrollToBottom()
+  } catch (error) {
+    ElMessage.error('加载消息失败')
+  } finally {
+    loading.value = false
+  }
 }
 
 const deleteCurrentChat = () => {
+  if (!currentChatId.value) return
+  
   ElMessageBox.confirm('确定要删除当前会话吗？', '提示', {
     type: 'warning'
-  }).then(() => {
-    historyList.value = historyList.value.filter(h => h.id !== currentChatId.value)
-    createNewChat()
-    ElMessage.success('删除成功')
+  }).then(async () => {
+    try {
+      await deleteAiSession(currentChatId.value)
+      ElMessage.success('删除成功')
+      await fetchHistoryList()
+      createNewChat()
+    } catch (error) {
+      ElMessage.error('删除失败')
+    }
   })
 }
 
@@ -168,16 +220,7 @@ const handleSend = async () => {
 }
 
 const sendMessage = async (content) => {
-  if (!currentChatId.value) {
-    currentChatId.value = Date.now()
-    currentChatTitle.value = content.length > 10 ? content.substring(0, 10) + '...' : content
-    historyList.value.unshift({
-      id: currentChatId.value,
-      title: currentChatTitle.value,
-      time: new Date().toLocaleString()
-    })
-  }
-  
+  // Optimistic UI update
   messages.value.push({
     role: 'user',
     content: content,
@@ -189,19 +232,35 @@ const sendMessage = async (content) => {
   scrollToBottom()
   
   try {
-    const res = await chatWithAi({ message: content })
+    const params = {
+      message: content,
+      sessionId: currentChatId.value,
+      visitorId: getVisitorId()
+    }
+    
+    const res = await chatWithAi(params)
     const aiResponse = res.data
+    
+    // Update session info if it was new
+    if (!currentChatId.value) {
+      currentChatId.value = aiResponse.sessionId
+      currentChatTitle.value = aiResponse.title
+      // Add to history list
+      fetchHistoryList()
+    }
     
     messages.value.push({
       role: 'assistant',
-      content: aiResponse,
+      content: aiResponse.response,
       time: new Date().toLocaleTimeString()
     })
+    
+    scrollToBottom()
   } catch (error) {
     console.error(error)
     messages.value.push({
       role: 'assistant',
-      content: '抱歉，AI 助教暂时无法回答您的问题，请稍后再试。',
+      content: '抱歉，AI 服务暂时不可用，请稍后再试。',
       time: new Date().toLocaleTimeString()
     })
   } finally {
@@ -219,8 +278,10 @@ const scrollToBottom = () => {
 }
 
 const formatMessage = (content) => {
-  // 简单的换行处理，实际可以使用Markdown渲染库
-  return content.replace(/\n/g, '<br/>')
+  // Simple format, replace newlines with <br>
+  // In a real app, use a Markdown renderer
+  if (!content) return ''
+  return content.replace(/\n/g, '<br>')
 }
 </script>
 

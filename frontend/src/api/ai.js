@@ -7,3 +7,25 @@ export function chatWithAi(data) {
     data
   })
 }
+
+export function getAiSessionList(params) {
+  return request({
+    url: '/ai/sessions',
+    method: 'get',
+    params
+  })
+}
+
+export function getAiSessionMessages(sessionId) {
+  return request({
+    url: `/ai/sessions/${sessionId}/messages`,
+    method: 'get'
+  })
+}
+
+export function deleteAiSession(sessionId) {
+  return request({
+    url: `/ai/sessions/${sessionId}`,
+    method: 'delete'
+  })
+}
