@@ -26,6 +26,18 @@ const routes = [
         meta: { title: '首页', icon: 'HomeFilled', roles: ['student', 'teacher', 'admin'] }
       },
       {
+        path: 'ai',
+        name: 'AIChat',
+        component: () => import('@/views/ai/chat.vue'),
+        meta: { title: 'AI 助教', icon: 'ChatDotRound', requiresAuth: false }
+      },
+      {
+        path: 'ai/history',
+        name: 'AIHistory',
+        component: () => import('@/views/ai/history.vue'),
+        meta: { title: 'AI 会话历史', hidden: true, requiresAuth: false }
+      },
+      {
         path: 'courses',
         name: 'Courses',
         component: () => import('@/views/course/index.vue'),

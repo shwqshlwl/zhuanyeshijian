@@ -44,7 +44,12 @@
           </el-breadcrumb>
         </div>
         <div class="header-right">
-          <el-dropdown trigger="click" @command="handleCommand">
+          <div v-if="!userStore.token" class="guest-actions">
+             <el-button type="primary" link @click="router.push('/login')">登录</el-button>
+             <el-divider direction="vertical" />
+             <el-button type="primary" link @click="router.push('/register')">注册</el-button>
+          </div>
+          <el-dropdown v-else trigger="click" @command="handleCommand">
             <div class="user-info">
               <el-avatar :size="32" class="user-avatar">
                 {{ userStore.realName?.charAt(0) || userStore.username?.charAt(0) || 'U' }}
@@ -102,6 +107,11 @@ const menuRoutes = computed(() => {
   const mainRoute = router.options.routes.find(r => r.path === '/')
   const allRoutes = mainRoute?.children?.filter(r => !r.meta?.hidden) || []
 
+  // 如果未登录，只显示不需要登录的路由
+  if (!userStore.token) {
+    return allRoutes.filter(route => route.meta?.requiresAuth === false)
+  }
+
   // 根据用户角色过滤菜单
   const userRole = userStore.isStudent ? 'student' : userStore.isTeacher ? 'teacher' : 'admin'
 
@@ -113,11 +123,6 @@ const menuRoutes = computed(() => {
     // 检查用户角色是否在允许的角色列表中
     return route.meta.roles.includes(userRole)
   })
-
-  // 调试信息
-  console.log('当前用户角色:', userRole)
-  console.log('userStore.userType:', userStore.userType)
-  console.log('过滤后的菜单路由:', filteredRoutes.map(r => ({ path: r.path, title: r.meta?.title, roles: r.meta?.roles })))
 
   return filteredRoutes
 })

@@ -38,6 +38,15 @@
           </el-descriptions-item>
           <el-descriptions-item label="作业内容" :span="3">
             <div class="homework-content">{{ homework.content || '暂无内容' }}</div>
+            <el-button 
+              type="primary" 
+              link 
+              icon="ChatDotRound" 
+              @click="handleAiAnalysis(homework.content)"
+              style="margin-top: 10px;"
+            >
+              AI 题目解析
+            </el-button>
           </el-descriptions-item>
           <el-descriptions-item label="附件" :span="3" v-if="homework.attachment">
             <el-link type="primary" :href="homework.attachment" target="_blank">
@@ -239,12 +248,15 @@
         <el-button type="primary" :loading="editLoading" @click="handleSaveEdit">保存</el-button>
       </template>
     </el-dialog>
+
+    <AiAnalysisPopup v-model="aiAnalysisVisible" :question-content="currentAnalysisContent" />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import AiAnalysisPopup from '@/views/ai/components/AiAnalysisPopup.vue'
 import { useUserStore } from '@/stores/user'
 import { getHomeworkById, updateHomework } from '@/api/homework'
 import request from '@/utils/request'
@@ -256,6 +268,15 @@ const homeworkId = route.params.id
 
 const loading = ref(false)
 const homework = ref({})
+
+const aiAnalysisVisible = ref(false)
+const currentAnalysisContent = ref('')
+
+const handleAiAnalysis = (content) => {
+  if (!content) return
+  currentAnalysisContent.value = content
+  aiAnalysisVisible.value = true
+}
 
 // 状态计算
 const statusType = computed(() => {
