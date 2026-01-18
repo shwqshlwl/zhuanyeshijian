@@ -92,7 +92,10 @@
 <script setup>
 import { ref, nextTick, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { chatWithAi } from '@/api/ai'
+import { useRoute } from 'vue-router'
 
+const route = useRoute()
 const inputMessage = ref('')
 const loading = ref(false)
 const messagesContainer = ref(null)
@@ -116,6 +119,11 @@ const mockHistory = [
 
 onMounted(() => {
   historyList.value = mockHistory
+  // Check for initial message from router (e.g. from homework analysis)
+  if (route.query.initialMessage) {
+    inputMessage.value = route.query.initialMessage
+    handleSend()
+  }
 })
 
 const createNewChat = () => {
@@ -180,16 +188,26 @@ const sendMessage = async (content) => {
   loading.value = true
   scrollToBottom()
   
-  // 模拟AI响应
-  setTimeout(() => {
-    loading.value = false
+  try {
+    const res = await chatWithAi({ message: content })
+    const aiResponse = res.data
+    
     messages.value.push({
       role: 'assistant',
-      content: `针对您的问题 "${content}"，AI 助教正在思考中...\n\n这里是模拟的回答内容。在真实场景中，我们会调用后端的大模型接口来获取答案。\n\n您可以尝试询问关于课程的任何问题。`,
+      content: aiResponse,
       time: new Date().toLocaleTimeString()
     })
+  } catch (error) {
+    console.error(error)
+    messages.value.push({
+      role: 'assistant',
+      content: '抱歉，AI 助教暂时无法回答您的问题，请稍后再试。',
+      time: new Date().toLocaleTimeString()
+    })
+  } finally {
+    loading.value = false
     scrollToBottom()
-  }, 1500)
+  }
 }
 
 const scrollToBottom = () => {

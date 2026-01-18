@@ -55,6 +55,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { chatWithAi } from '@/api/ai'
 
 const props = defineProps({
   modelValue: {
@@ -93,21 +94,60 @@ const handleClose = () => {
   visible.value = false
 }
 
-const analyzeQuestion = () => {
+const analyzeQuestion = async () => {
   loading.value = true
-  // 模拟AI分析过程
-  setTimeout(() => {
-    analysisData.value = {
-      tags: ['循环结构', '数组操作', '算法复杂度'],
-      thinking: '本题主要考察对数组遍历和条件判断的理解。需要注意边界条件的处理，以及如何优化算法的时间复杂度。',
-      analysis: '1. 首先定义一个结果变量。<br>2. 遍历数组，对每个元素进行判断。<br>3. 如果满足条件，更新结果变量。<br>4. 循环结束后返回结果。<br><br>常见错误点：数组下标越界，或者循环终止条件设置错误。'
+  try {
+    const prompt = `请分析以下题目，并给出：
+1. 考察的知识点（用逗号分隔）
+2. 解题思路
+3. 详细解析
+
+题目内容：
+${props.questionContent}
+
+请以JSON格式返回，格式如下：
+{
+  "tags": ["知识点1", "知识点2"],
+  "thinking": "解题思路内容...",
+  "analysis": "详细解析内容..."
+}`
+
+    const res = await chatWithAi({ 
+      message: prompt,
+      systemPrompt: "你是一个专业的课程助教，擅长分析编程题目。请务必返回严格的JSON格式数据，不要包含Markdown代码块标记。" 
+    })
+    
+    // 尝试解析返回的JSON
+    let jsonStr = res.data
+    // 清理可能的markdown标记
+    jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim()
+    
+    try {
+      const result = JSON.parse(jsonStr)
+      analysisData.value = result
+    } catch (e) {
+      // 如果解析失败，直接显示原始内容
+      analysisData.value = {
+        tags: ['AI分析'],
+        thinking: '解析格式异常，直接显示内容：',
+        analysis: res.data
+      }
     }
+  } catch (error) {
+    console.error(error)
+    analysisData.value = {
+      tags: ['错误'],
+      thinking: '分析失败',
+      analysis: '抱歉，AI 暂时无法分析该题目。'
+    }
+  } finally {
     loading.value = false
-  }, 2000)
+  }
 }
 
 const formatContent = (content) => {
-  return content
+  if (!content) return ''
+  return content.replace(/\n/g, '<br/>')
 }
 
 const askMore = () => {
