@@ -42,12 +42,29 @@ public class ExperimentServiceImpl implements ExperimentService {
     private final CourseMapper courseMapper;
     private final SysUserMapper sysUserMapper;
     private final CodeExecutionService codeExecutionService;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    private final com.example.citp.mapper.ClassMapper classMapper;
 
     @Override
     public Page<ExperimentVO> getExperimentList(Integer pageNum, Integer pageSize, Long courseId) {
         Page<Experiment> page = new Page<>(pageNum, pageSize);
         
+        SysUser currentUser = getCurrentUser();
+        
         LambdaQueryWrapper<Experiment> wrapper = new LambdaQueryWrapper<>();
+        
+        // 学生只能查看自己所选课程的实验
+        if (currentUser.getUserType() == 1) { // 学生
+            java.util.List<Long> studentCourseIds = getStudentCourseIds(currentUser.getId());
+            if (studentCourseIds.isEmpty()) {
+                // 学生没有选课，返回空列表
+                Page<ExperimentVO> emptyPage = new Page<>(pageNum, pageSize, 0);
+                emptyPage.setRecords(new java.util.ArrayList<>());
+                return emptyPage;
+            }
+            wrapper.in(Experiment::getCourseId, studentCourseIds);
+        }
+        
         if (courseId != null) {
             wrapper.eq(Experiment::getCourseId, courseId);
         }
@@ -93,6 +110,12 @@ public class ExperimentServiceImpl implements ExperimentService {
         Experiment experiment = experimentMapper.selectById(id);
         if (experiment == null) {
             throw new BusinessException("实验不存在");
+        }
+
+        // 学生权限检查：只能查看自己所选课程的实验
+        SysUser currentUser = getCurrentUser();
+        if (currentUser.getUserType() == 1) { // 学生
+            checkStudentCourseAccess(currentUser.getId(), experiment.getCourseId());
         }
 
         ExperimentVO vo = BeanUtil.copyProperties(experiment, ExperimentVO.class);
@@ -153,6 +176,9 @@ public class ExperimentServiceImpl implements ExperimentService {
         if (currentUser.getUserType() != 1) {
             throw new BusinessException("只有学生可以提交实验");
         }
+
+        // 学生权限检查：只能提交自己所选课程的实验
+        checkStudentCourseAccess(currentUser.getId(), experiment.getCourseId());
 
         // 创建提交记录
         ExperimentSubmit submit = new ExperimentSubmit();
@@ -336,8 +362,19 @@ public class ExperimentServiceImpl implements ExperimentService {
 
     @Override
     public ExperimentResultVO getExperimentResult(Long experimentId) {
+        // 检查实验是否存在
+        Experiment experiment = experimentMapper.selectById(experimentId);
+        if (experiment == null) {
+            throw new BusinessException("实验不存在");
+        }
+
         // 获取当前学生
         SysUser currentUser = getCurrentUser();
+
+        // 学生权限检查：只能查看自己所选课程的实验结果
+        if (currentUser.getUserType() == 1) { // 学生
+            checkStudentCourseAccess(currentUser.getId(), experiment.getCourseId());
+        }
 
         // 查询最新提交记录
         ExperimentSubmit submit = experimentSubmitMapper.selectOne(new LambdaQueryWrapper<ExperimentSubmit>()
@@ -373,6 +410,12 @@ public class ExperimentServiceImpl implements ExperimentService {
             throw new BusinessException("实验不存在");
         }
 
+        // 学生权限检查：只能运行自己所选课程的实验代码
+        SysUser currentUser = getCurrentUser();
+        if (currentUser.getUserType() == 1) { // 学生
+            checkStudentCourseAccess(currentUser.getId(), experiment.getCourseId());
+        }
+
         // 使用真实的代码执行服务
         try {
             Integer timeLimit = experiment.getTimeLimit() != null ? experiment.getTimeLimit() : 5000;
@@ -389,8 +432,19 @@ public class ExperimentServiceImpl implements ExperimentService {
 
     @Override
     public java.util.List<ExperimentResultVO> getMySubmissions(Long experimentId) {
+        // 检查实验是否存在
+        Experiment experiment = experimentMapper.selectById(experimentId);
+        if (experiment == null) {
+            throw new BusinessException("实验不存在");
+        }
+
         // 获取当前学生
         SysUser currentUser = getCurrentUser();
+
+        // 学生权限检查：只能查看自己所选课程的实验提交历史
+        if (currentUser.getUserType() == 1) { // 学生
+            checkStudentCourseAccess(currentUser.getId(), experiment.getCourseId());
+        }
 
         // 查询所有提交记录
         java.util.List<ExperimentSubmit> submits = experimentSubmitMapper.selectList(
@@ -505,6 +559,38 @@ public class ExperimentServiceImpl implements ExperimentService {
         }
 
         return vo;
+    }
+
+    /**
+     * 获取学生所选课程的ID列表
+     */
+    private java.util.List<Long> getStudentCourseIds(Long studentId) {
+        // 查询学生所在的班级
+        java.util.List<Long> classIds = jdbcTemplate.queryForList(
+                "SELECT class_id FROM student_class WHERE student_id = ?",
+                Long.class, studentId);
+
+        if (classIds.isEmpty()) {
+            return new java.util.ArrayList<>();
+        }
+
+        // 查询班级关联的课程
+        java.util.List<com.example.citp.model.entity.ClassEntity> classes = classMapper.selectBatchIds(classIds);
+        return classes.stream()
+                .filter(c -> c.getCourseId() != null)
+                .map(com.example.citp.model.entity.ClassEntity::getCourseId)
+                .distinct()
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    /**
+     * 检查学生是否有权限访问该课程
+     */
+    private void checkStudentCourseAccess(Long studentId, Long courseId) {
+        java.util.List<Long> studentCourseIds = getStudentCourseIds(studentId);
+        if (!studentCourseIds.contains(courseId)) {
+            throw new BusinessException("您没有权限访问该课程的实验");
+        }
     }
 
     /**
