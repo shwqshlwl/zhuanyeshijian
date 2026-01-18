@@ -2,10 +2,10 @@
   <div class="question-container">
     <div class="search-bar">
       <el-select v-model="searchForm.courseId" placeholder="选择课程" clearable style="width: 200px">
-        <el-option v-for="c in courseOptions" :key="c.id" :label="c.name" :value="c.id" />
+        <el-option v-for="c in courseOptions" :key="c.id" :label="c.courseName" :value="c.id" />
       </el-select>
       <el-select v-model="searchForm.questionTypeId" placeholder="题型" clearable style="width: 150px">
-        <el-option v-for="t in typeOptions" :key="t.id" :label="t.name" :value="t.id" />
+        <el-option v-for="t in typeOptions" :key="t.id" :label="t.typeName" :value="t.id" />
       </el-select>
       <el-select v-model="searchForm.difficulty" placeholder="难度" clearable style="width: 120px">
         <el-option label="简单" :value="1" />
@@ -26,8 +26,8 @@
 
     <el-table :data="questionList" v-loading="loading" stripe @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="50" v-if="userStore.isTeacher" />
-      <el-table-column prop="content" label="题目内容" min-width="300" show-overflow-tooltip />
-      <el-table-column prop="typeName" label="题型" width="100" />
+      <el-table-column prop="questionContent" label="题目内容" min-width="300" show-overflow-tooltip />
+      <el-table-column prop="questionTypeName" label="题型" width="100" />
       <el-table-column prop="courseName" label="所属课程" width="150" />
       <el-table-column prop="difficulty" label="难度" width="80">
         <template #default="{ row }">
@@ -53,16 +53,16 @@
       <el-form ref="formRef" :model="questionForm" :rules="formRules" label-width="100px">
         <el-form-item label="题型" prop="questionTypeId">
           <el-select v-model="questionForm.questionTypeId" placeholder="请选择题型" style="width: 100%">
-            <el-option v-for="t in typeOptions" :key="t.id" :label="t.name" :value="t.id" />
+            <el-option v-for="t in typeOptions" :key="t.id" :label="t.typeName" :value="t.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="所属课程" prop="courseId">
           <el-select v-model="questionForm.courseId" placeholder="请选择课程" style="width: 100%">
-            <el-option v-for="c in courseOptions" :key="c.id" :label="c.name" :value="c.id" />
+            <el-option v-for="c in courseOptions" :key="c.id" :label="c.courseName" :value="c.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="题目内容" prop="content">
-          <el-input v-model="questionForm.content" type="textarea" :rows="4" placeholder="请输入题目内容" />
+            <el-input v-model="questionForm.questionContent" type="textarea" :rows="4" placeholder="请输入题目内容" />
         </el-form-item>
         <el-form-item label="选项" v-if="questionForm.questionTypeId && isChoiceType">
           <div v-for="(opt, idx) in questionForm.options" :key="idx" class="option-item">
@@ -76,8 +76,8 @@
             <el-icon><Plus /></el-icon>添加选项
           </el-button>
         </el-form-item>
-        <el-form-item label="正确答案" prop="answer">
-          <el-input v-model="questionForm.answer" :placeholder="isChoiceType ? '如：A 或 A,B,C' : '请输入正确答案'" />
+        <el-form-item label="正确答案" prop="correctAnswer">
+          <el-input v-model="questionForm.correctAnswer" :placeholder="isChoiceType ? '如：A 或 A,B,C' : '请输入正确答案'" />
         </el-form-item>
         <el-form-item label="难度" prop="difficulty">
           <el-radio-group v-model="questionForm.difficulty">
@@ -122,18 +122,19 @@ const submitLoading = ref(false)
 const formRef = ref()
 const currentId = ref(null)
 const questionForm = reactive({
-  questionTypeId: '', courseId: '', content: '', options: ['', '', '', ''], answer: '', difficulty: 1, analysis: ''
+  questionTypeId: '', courseId: '', questionContent: '', options: ['', '', '', ''], answer: '', difficulty: 1, analysis: '',correctAnswer:''
 })
 const formRules = {
   questionTypeId: [{ required: true, message: '请选择题型', trigger: 'change' }],
   courseId: [{ required: true, message: '请选择课程', trigger: 'change' }],
-  content: [{ required: true, message: '请输入题目内容', trigger: 'blur' }],
+  questionContent: [{ required: true, message: '请输入题目内容', trigger: 'blur' }],
   answer: [{ required: true, message: '请输入正确答案', trigger: 'blur' }]
 }
 
 const isChoiceType = computed(() => {
   const type = typeOptions.value.find(t => t.id === questionForm.questionTypeId)
-  return type && (type.code === 'SINGLE' || type.code === 'MULTIPLE')
+  console.log('在这里:',type)
+  return type && (type.typeCode === 'single_choice' || type.typeCode === 'multiple_choice')
 })
 
 const fetchList = async () => {
@@ -141,6 +142,7 @@ const fetchList = async () => {
   try {
     const res = await getQuestionList({ pageNum: pageNum.value, pageSize: pageSize.value, ...searchForm })
     questionList.value = res.data?.records || []
+    console.log(questionList.value)
     total.value = res.data?.total || 0
   } finally {
     loading.value = false
@@ -184,14 +186,27 @@ const handleFormSubmit = async () => {
       submitLoading.value = true
       try {
         const data = { ...questionForm }
-        if (!isChoiceType.value) delete data.options
+
+        // 关键：将 options 数组序列化为 JSON 字符串
+        if (isChoiceType.value && Array.isArray(data.options)) {
+          data.options = JSON.stringify(data.options)
+        }
+
+        // 非选择题不需要 options
+        if (!isChoiceType.value) {
+          delete data.options
+        }
+
         if (isEdit.value) {
+          console.log("修改题目:", data)
           await updateQuestion(currentId.value, data)
           ElMessage.success('更新成功')
         } else {
+          console.log("添加题目:", data)
           await createQuestion(data)
           ElMessage.success('创建成功')
         }
+
         dialogVisible.value = false
         fetchList()
       } finally {
@@ -200,6 +215,7 @@ const handleFormSubmit = async () => {
     }
   })
 }
+
 
 const handleDelete = (row) => {
   ElMessageBox.confirm('确定删除该题目吗？', '提示', { type: 'warning' }).then(async () => {

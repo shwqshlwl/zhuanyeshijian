@@ -204,7 +204,9 @@ public class ClassServiceImpl implements ClassService {
 
         // 检查学生是否存在
         SysUser student = sysUserMapper.selectById(studentId);
-        if (student == null || student.getUserType() != 3) {
+        if (student.getUserType() != 1) {
+            throw new BusinessException("学生不存在");
+        } else if (student == null) {
             throw new BusinessException("学生不存在");
         }
 

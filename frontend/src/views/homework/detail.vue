@@ -21,7 +21,7 @@
         <el-descriptions :column="3" border>
           <el-descriptions-item label="作业标题">{{ homework.homeworkTitle }}</el-descriptions-item>
           <el-descriptions-item label="所属课程">{{ homework.courseName }}</el-descriptions-item>
-          <el-descriptions-item label="所属班级">{{ homework.className || (homework.classId ? '班级信息缺失' : '全部班级') }}</el-descriptions-item>
+          <el-descriptions-item label="所属班级">{{ homework.className || '全部班级' }}</el-descriptions-item>
           <el-descriptions-item label="开始时间">{{ homework.startTime || '-' }}</el-descriptions-item>
           <el-descriptions-item label="截止时间">{{ homework.endTime }}</el-descriptions-item>
           <el-descriptions-item label="总分">{{ homework.totalScore || 100 }} 分</el-descriptions-item>
@@ -57,7 +57,7 @@
             <el-tag v-else type="info">未提交</el-tag>
           </div>
         </template>
-        
+
         <!-- 已批改显示结果 -->
         <div v-if="mySubmission.status === 2" class="graded-result">
           <el-result icon="success" title="作业已批改">
@@ -80,38 +80,38 @@
             </el-descriptions-item>
           </el-descriptions>
         </div>
-        
+
         <!-- 未批改可编辑 -->
         <div v-else class="submit-form">
           <el-form label-position="top">
             <el-form-item label="作业内容">
               <el-input
-                v-model="submitForm.content"
-                type="textarea"
-                :rows="8"
-                placeholder="请输入作业内容..."
-                :disabled="homework.status === 2 && !homework.allowLate"
+                  v-model="submitForm.content"
+                  type="textarea"
+                  :rows="8"
+                  placeholder="请输入作业内容..."
+                  :disabled="homework.status === 2 && !homework.allowLate"
               />
             </el-form-item>
-<!--            <el-form-item label="附件上传">-->
-<!--              <el-upload-->
-<!--                class="upload-area"-->
-<!--                drag-->
-<!--                action="#"-->
-<!--                :auto-upload="false"-->
-<!--                :on-change="handleFileChange"-->
-<!--              >-->
-<!--                <el-icon class="el-icon&#45;&#45;upload"><Upload /></el-icon>-->
-<!--                <div class="el-upload__text">拖拽文件到此处或 <em>点击上传</em></div>-->
-<!--              </el-upload>-->
-<!--            </el-form-item>-->
+            <!--            <el-form-item label="附件上传">-->
+            <!--              <el-upload-->
+            <!--                class="upload-area"-->
+            <!--                drag-->
+            <!--                action="#"-->
+            <!--                :auto-upload="false"-->
+            <!--                :on-change="handleFileChange"-->
+            <!--              >-->
+            <!--                <el-icon class="el-icon&#45;&#45;upload"><Upload /></el-icon>-->
+            <!--                <div class="el-upload__text">拖拽文件到此处或 <em>点击上传</em></div>-->
+            <!--              </el-upload>-->
+            <!--            </el-form-item>-->
             <el-form-item>
               <el-button
-                type="primary"
-                size="large"
-                :loading="submitLoading"
-                :disabled="homework.status === 0 || (homework.status === 2 && !homework.allowLate)"
-                @click="handleSubmit"
+                  type="primary"
+                  size="large"
+                  :loading="submitLoading"
+                  :disabled="homework.status === 0 || (homework.status === 2 && !homework.allowLate)"
+                  @click="handleSubmit"
               >
                 {{ mySubmission.status === 1 ? '重新提交' : '提交作业' }}
               </el-button>
@@ -140,7 +140,7 @@
             </div>
           </div>
         </template>
-        
+
         <el-table :data="filteredSubmissions" stripe v-loading="submissionsLoading">
           <el-table-column prop="studentNo" label="学号" width="120" />
           <el-table-column prop="studentName" label="姓名" width="100" />
@@ -170,14 +170,14 @@
             </template>
           </el-table-column>
         </el-table>
-        
+
         <div class="pagination-container">
           <el-pagination
-            v-model:current-page="submissionPageNum"
-            v-model:page-size="submissionPageSize"
-            :total="submissionTotal"
-            layout="total, prev, pager, next"
-            @current-change="fetchSubmissions"
+              v-model:current-page="submissionPageNum"
+              v-model:page-size="submissionPageSize"
+              :total="submissionTotal"
+              layout="total, prev, pager, next"
+              @current-change="fetchSubmissions"
           />
         </div>
       </el-card>
@@ -190,7 +190,7 @@
           <el-descriptions-item label="学生">{{ currentSubmission.studentName }} ({{ currentSubmission.studentNo }})</el-descriptions-item>
           <el-descriptions-item label="提交时间">{{ currentSubmission.submitTime }}</el-descriptions-item>
         </el-descriptions>
-        
+
         <div class="student-answer">
           <h4>学生答案</h4>
           <div class="answer-content">{{ currentSubmission.content || '未提交内容' }}</div>
@@ -198,7 +198,7 @@
             <el-icon><Download /></el-icon> 下载附件
           </el-link>
         </div>
-        
+
         <el-form :model="gradeForm" label-width="80px" style="margin-top: 20px">
           <el-form-item label="评分">
             <el-input-number v-model="gradeForm.score" :min="0" :max="homework.totalScore || 100" />
@@ -447,85 +447,85 @@ onMounted(() => {
   .detail-content {
     margin-top: 20px;
   }
-  
+
   .info-card, .submit-card, .grade-card {
     margin-bottom: 20px;
   }
-  
+
   .card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    
+
     .header-actions {
       display: flex;
       gap: 12px;
     }
   }
-  
+
   .homework-content {
     white-space: pre-wrap;
     line-height: 1.8;
   }
-  
+
   .submit-stats {
     display: flex;
     align-items: center;
   }
-  
+
   // 学生提交区域
   .graded-result {
     .score-display {
       text-align: center;
-      
+
       .score-label {
         display: block;
         font-size: 14px;
         color: #909399;
         margin-bottom: 8px;
       }
-      
+
       .score-value {
         font-size: 48px;
         font-weight: 600;
         color: #67c23a;
       }
-      
+
       .score-total {
         font-size: 24px;
         color: #909399;
       }
     }
-    
+
     .my-answer, .teacher-comment {
       white-space: pre-wrap;
       line-height: 1.6;
     }
   }
-  
+
   .submit-form {
     .upload-area {
       width: 100%;
     }
-    
+
     .deadline-tip {
       margin-left: 12px;
       color: #f56c6c;
       font-size: 13px;
     }
   }
-  
+
   // 批改对话框
   .grade-dialog-content {
     .student-answer {
       margin-top: 20px;
-      
+
       h4 {
         margin: 0 0 12px;
         font-size: 14px;
         color: #606266;
       }
-      
+
       .answer-content {
         padding: 16px;
         background: #f5f7fa;
@@ -537,7 +537,7 @@ onMounted(() => {
       }
     }
   }
-  
+
   .pagination-container {
     margin-top: 16px;
     display: flex;

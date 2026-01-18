@@ -73,7 +73,15 @@ public class HomeworkServiceImpl implements HomeworkService {
         Page<Homework> page = new Page<>(pageNum, pageSize);
 
         LambdaQueryWrapper<Homework> wrapper = new LambdaQueryWrapper<>();
-
+        if (courseId != null) {
+            wrapper.eq(Homework::getCourseId, courseId);
+        }
+        if (classId != null) {
+            wrapper.eq(Homework::getClassId, classId);
+        }
+        if (status != null) {
+            wrapper.eq(Homework::getStatus, status);
+        }
         Page<Homework> homeworkPage = homeworkMapper.selectPage(page, wrapper);
 
 
@@ -109,24 +117,21 @@ public class HomeworkServiceImpl implements HomeworkService {
         }
 
         HomeworkDetailVO vo = BeanUtil.copyProperties(homework, HomeworkDetailVO.class);
-        
+
         // 查询课程名称
         Course course = courseMapper.selectById(homework.getCourseId());
         if (course != null) {
             vo.setCourseName(course.getCourseName());
         }
-        
+
         // 查询班级名称
         if (homework.getClassId() != null) {
             ClassEntity classEntity = classMapper.selectById(homework.getClassId());
             if (classEntity != null) {
                 vo.setClassName(classEntity.getClassName());
-            } else {
-                // 班级记录不存在，设置默认名称
-                vo.setClassName("班级已删除");
             }
         }
-        
+
         // 查询教师姓名
         SysUser teacher = sysUserMapper.selectById(homework.getTeacherId());
         if (teacher != null) {
@@ -219,7 +224,7 @@ public class HomeworkServiceImpl implements HomeworkService {
 
         // 获取当前学生
         SysUser currentUser = getCurrentUser();
-        if (currentUser.getUserType() != 3) {
+        if (currentUser.getUserType() != 1) {
             throw new BusinessException("只有学生可以提交作业");
         }
 
@@ -323,7 +328,7 @@ public class HomeworkServiceImpl implements HomeworkService {
     @Override
     public Page<HomeworkVO> getStudentHomeworks(Integer pageNum, Integer pageSize, Long courseId, Integer status) {
         SysUser currentUser = getCurrentUser();
-        
+
         // 获取学生所在班级
         List<Long> classIds = jdbcTemplate.queryForList(
                 "SELECT class_id FROM student_class WHERE student_id = ?",
@@ -360,30 +365,27 @@ public class HomeworkServiceImpl implements HomeworkService {
      */
     private HomeworkVO convertToVO(Homework homework) {
         HomeworkVO vo = BeanUtil.copyProperties(homework, HomeworkVO.class);
-        
+
         // 查询课程名称
         Course course = courseMapper.selectById(homework.getCourseId());
         if (course != null) {
             vo.setCourseName(course.getCourseName());
         }
-        
+
         // 查询班级名称
         if (homework.getClassId() != null) {
             ClassEntity classEntity = classMapper.selectById(homework.getClassId());
             if (classEntity != null) {
                 vo.setClassName(classEntity.getClassName());
-            } else {
-                // 班级记录不存在，设置默认名称
-                vo.setClassName("班级已删除");
             }
         }
-        
+
         // 查询教师姓名
         SysUser teacher = sysUserMapper.selectById(homework.getTeacherId());
         if (teacher != null) {
             vo.setTeacherName(teacher.getRealName());
         }
-        
+
         return vo;
     }
 
@@ -394,6 +396,25 @@ public class HomeworkServiceImpl implements HomeworkService {
      */
     private HomeworkListDetailVO convertToHomeworkListDetailVO(Homework homework) {
         HomeworkListDetailVO vo = BeanUtil.copyProperties(homework, HomeworkListDetailVO.class);
+        // 查询课程名称
+        Course course = courseMapper.selectById(homework.getCourseId());
+        if (course != null) {
+            vo.setCourseName(course.getCourseName());
+        }
+
+        // 查询班级名称
+        if (homework.getClassId() != null) {
+            ClassEntity classEntity = classMapper.selectById(homework.getClassId());
+            if (classEntity != null) {
+                vo.setClassName(classEntity.getClassName());
+            }
+        }
+
+        // 查询教师姓名
+        SysUser teacher = sysUserMapper.selectById(homework.getTeacherId());
+        if (teacher != null) {
+            vo.setTeacherName(teacher.getRealName());
+        }
         // 统计提交情况
         Long submittedCount = homeworkSubmitMapper.selectCount(new LambdaQueryWrapper<HomeworkSubmit>()
                 .eq(HomeworkSubmit::getHomeworkId, homework.getId())
@@ -418,14 +439,14 @@ public class HomeworkServiceImpl implements HomeworkService {
      */
     private HomeworkSubmitVO convertSubmitToVO(HomeworkSubmit submit) {
         HomeworkSubmitVO vo = BeanUtil.copyProperties(submit, HomeworkSubmitVO.class);
-        
+
         // 查询学生信息
         SysUser student = sysUserMapper.selectById(submit.getStudentId());
         if (student != null) {
             vo.setStudentName(student.getRealName());
             vo.setStudentNo(student.getStudentNo());
         }
-        
+
         // 查询批改教师
         if (submit.getGraderId() != null) {
             SysUser grader = sysUserMapper.selectById(submit.getGraderId());
@@ -433,7 +454,7 @@ public class HomeworkServiceImpl implements HomeworkService {
                 vo.setGraderName(grader.getRealName());
             }
         }
-        
+
         return vo;
     }
 

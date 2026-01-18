@@ -75,8 +75,8 @@ const routes = [
       },
       {
         path: 'my-homeworks',
-        name: 'MyHomeworks',
-        component: () => import('@/views/homework/my-homeworks.vue'),
+        name: 'myHomeworks',
+        component: () => import('@/views/homework/index.vue'),
         meta: { title: '我的作业', icon: 'EditPen', roles: ['student'] }
       },
       {
