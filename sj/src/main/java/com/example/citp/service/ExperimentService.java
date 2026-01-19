@@ -68,4 +68,9 @@ public interface ExperimentService {
      * 获取学生的实验提交详情（教师查看）
      */
     ExperimentResultVO getStudentSubmission(Long experimentId, Long studentId);
+
+    /**
+     * 获取实验提交统计（教师）
+     */
+    com.example.citp.model.vo.ExperimentSubmitStatVO getSubmitStatistics(Long experimentId);
 }
