@@ -11,6 +11,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.http.MediaType;
 
 import java.util.List;
 
@@ -27,6 +29,12 @@ public class AiController {
     public Result<AiChatResponse> chat(@RequestBody AiChatRequest request) {
         AiChatResponse response = aiService.chat(request);
         return Result.success(response);
+    }
+
+    @Operation(summary = "与 AI 对话 (流式)")
+    @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamChat(@RequestBody AiChatRequest request) {
+        return aiService.streamChat(request);
     }
 
     @Operation(summary = "获取会话列表")

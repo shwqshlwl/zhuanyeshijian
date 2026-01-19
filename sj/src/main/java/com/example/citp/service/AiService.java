@@ -16,6 +16,13 @@ public interface AiService {
     AiChatResponse chat(AiChatRequest request);
 
     /**
+     * 与 AI 对话 (流式)
+     * @param request 请求参数
+     * @return SseEmitter
+     */
+    org.springframework.web.servlet.mvc.method.annotation.SseEmitter streamChat(AiChatRequest request);
+
+    /**
      * 获取会话列表
      * @param userId 用户ID (登录用户)
      * @param visitorId 访客ID (未登录用户)

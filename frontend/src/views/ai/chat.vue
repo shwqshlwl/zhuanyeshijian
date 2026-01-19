@@ -54,19 +54,22 @@
           </div>
           <div class="content">
             <div class="bubble">
-              <div v-html="formatMessage(msg.content)"></div>
+              <div v-if="!msg.content && msg.role === 'assistant'" class="thinking-state">
+                 <el-icon class="is-loading"><Loading /></el-icon> <span>模型正在思考...</span>
+              </div>
+              <div v-else v-html="formatMessage(msg.content)"></div>
             </div>
             <div class="meta">{{ msg.time }}</div>
           </div>
         </div>
         
-        <div v-if="loading" class="message-item assistant">
+        <div v-if="loading && (messages.length === 0 || messages[messages.length - 1].role !== 'assistant')" class="message-item assistant">
           <div class="avatar">
             <el-avatar :size="36" icon="Service" class="assistant" />
           </div>
           <div class="content">
-            <div class="bubble typing">
-              <span></span><span></span><span></span>
+            <div class="bubble thinking-state">
+              <el-icon class="is-loading"><Loading /></el-icon> <span>模型正在思考...</span>
             </div>
           </div>
         </div>
@@ -94,8 +97,9 @@ import { ref, nextTick, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { chatWithAi, getAiSessionList, getAiSessionMessages, deleteAiSession } from '@/api/ai'
 import { getVisitorId } from '@/utils/visitor'
-import { useRoute, useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/user'
 
+const userStore = useUserStore()
 const route = useRoute()
 const router = useRouter()
 const inputMessage = ref('')
@@ -231,6 +235,9 @@ const sendMessage = async (content) => {
   loading.value = true
   scrollToBottom()
   
+  // Create assistant message placeholder later...
+  let assistantMsgIndex = -1
+
   try {
     const params = {
       message: content,
@@ -238,31 +245,88 @@ const sendMessage = async (content) => {
       visitorId: getVisitorId()
     }
     
-    const res = await chatWithAi(params)
-    const aiResponse = res.data
-    
-    // Update session info if it was new
-    if (!currentChatId.value) {
-      currentChatId.value = aiResponse.sessionId
-      currentChatTitle.value = aiResponse.title
-      // Add to history list
-      fetchHistoryList()
+    const response = await fetch('/api/ai/chat/stream', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': userStore.token ? `Bearer ${userStore.token}` : ''
+        },
+        body: JSON.stringify(params)
+    })
+
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    // Now start streaming, add placeholder
+    assistantMsgIndex = messages.value.push({
+        role: 'assistant',
+        content: '',
+        time: new Date().toLocaleTimeString()
+    }) - 1
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let currentEvent = null
+    let currentDataBuffer = []
+
+    while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop()
+
+        for (const line of lines) {
+            if (line.trim() === '') {
+                if (currentDataBuffer.length > 0) {
+                    const fullData = currentDataBuffer.join('\n')
+                    if (currentEvent === 'meta') {
+                        try {
+                            const meta = JSON.parse(fullData)
+                            if (!currentChatId.value) {
+                                currentChatId.value = meta.sessionId
+                                currentChatTitle.value = meta.title
+                                fetchHistoryList()
+                            }
+                        } catch (e) {
+                            console.error('Parse meta error', e)
+                        }
+                    } else if (currentEvent === 'error') {
+                         messages.value[assistantMsgIndex].content = fullData
+                    } else {
+                         messages.value[assistantMsgIndex].content += fullData
+                         scrollToBottom()
+                    }
+                }
+                currentDataBuffer = []
+                currentEvent = null
+                continue
+            }
+            
+            if (line.startsWith('event:')) {
+                currentEvent = line.slice(6).trim()
+            } else if (line.startsWith('data:')) {
+                const data = line.slice(5)
+                currentDataBuffer.push(data.startsWith(' ') ? data.slice(1) : data)
+            }
+        }
     }
     
-    messages.value.push({
-      role: 'assistant',
-      content: aiResponse.response,
-      time: new Date().toLocaleTimeString()
-    })
-    
-    scrollToBottom()
   } catch (error) {
     console.error(error)
-    messages.value.push({
-      role: 'assistant',
-      content: '抱歉，AI 服务暂时不可用，请稍后再试。',
-      time: new Date().toLocaleTimeString()
-    })
+    if (assistantMsgIndex !== -1 && messages.value[assistantMsgIndex]) {
+        messages.value[assistantMsgIndex].content += '\n[网络错误: ' + error.message + ']'
+    } else {
+        // If placeholder wasn't created yet
+        messages.value.push({
+            role: 'assistant',
+            content: '[网络错误: ' + error.message + ']',
+            time: new Date().toLocaleTimeString()
+        })
+    }
   } finally {
     loading.value = false
     scrollToBottom()
@@ -486,26 +550,14 @@ const formatMessage = (content) => {
 }
 
 .typing {
-  display: flex;
-  align-items: center;
-  height: 24px;
-  
-  span {
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    background-color: #909399;
-    border-radius: 50%;
-    margin: 0 2px;
-    animation: typing 1.4s infinite ease-in-out both;
-    
-    &:nth-child(1) { animation-delay: -0.32s; }
-    &:nth-child(2) { animation-delay: -0.16s; }
-  }
+  display: none;
 }
 
-@keyframes typing {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
+.thinking-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #909399;
+  font-size: 14px;
 }
 </style>
