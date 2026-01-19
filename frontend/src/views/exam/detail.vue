@@ -433,10 +433,10 @@ const fetchExamRecords = async () => {
     const rawRecords = res.data?.records || []
     examRecords.value = rawRecords.map(r => ({
       // try multiple possible backend field shapes
-      studentId: r.studentId ?? r.student_id ?? r.studentId,
-      studentNo: r.studentNo ?? r.student_no ?? r.studentNo ?? r.studentNo ?? '-',
-      studentName: r.studentName ?? r.student_name ?? r.realName ?? r.studentName ?? '-',
-      submitTime: r.submitTime ?? r.submit_time ?? r.submitTime ?? '-',
+      studentId: r.studentId ?? r.studentId,
+      studentNo: r.studentNo ?? '-',
+      studentName: r.studentName ?? '-',
+      submitTime: r.submitTime ?? r.submitTime ?? '-',
       score: r.score ?? null,
       status: typeof r.status !== 'undefined' ? r.status : (r.status ?? 0),
       // keep original record for any extra use
@@ -612,8 +612,14 @@ const handleSaveEdit = async () => {
 const viewStudentAnswer = async (row) => {
   try {
     const res = await request({ url: `/exams/${examId}/records/${row.studentId}`, method: 'get' })
-    currentStudent.value = { ...row, answers: res.data?.answers || [] }
+    currentStudent.value = { ...row,studentName: res.data.studentName || row.studentName,
+      studentNo: res.data.studentNo || row.studentNo, answers: res.data?.answers || [] }
     showAnswerDialog.value = true
+    const record = examRecords.value.find(r => r.studentId === row.studentId)
+    if (record) {
+      record.studentName = res.data.studentName,
+      record.studentNo = res.data.studentNo
+    }
   } catch (e) {
     console.error(e)
   }
@@ -628,6 +634,7 @@ onMounted(() => {
   fetchExamDetail()
   fetchExamQuestions()
   fetchQuestionTypes()
+  viewStudentAnswer()
   if (userStore.isTeacher) {
     fetchExamRecords()
   }
