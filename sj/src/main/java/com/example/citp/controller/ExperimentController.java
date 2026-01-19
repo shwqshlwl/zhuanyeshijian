@@ -83,7 +83,8 @@ public class ExperimentController {
             @RequestBody java.util.Map<String, String> request) {
         String code = request.get("code");
         String language = request.get("language");
-        java.util.Map<String, Object> result = experimentService.runCode(id, code, language);
+        String input = request.get("input"); // 支持输入参数
+        java.util.Map<String, Object> result = experimentService.runCode(id, code, language, input);
         return Result.success(result);
     }
 

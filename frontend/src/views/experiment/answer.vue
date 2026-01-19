@@ -139,6 +139,24 @@
             ></textarea>
           </div>
 
+          <!-- 输入区域 -->
+          <div class="input-section">
+            <div class="input-header">
+              <el-icon><Edit /></el-icon>
+              <span>测试输入（可选）</span>
+              <el-tooltip content="如果程序需要输入数据，请在此输入。多行输入请按回车换行。" placement="top">
+                <el-icon class="help-icon"><QuestionFilled /></el-icon>
+              </el-tooltip>
+            </div>
+            <el-input
+              v-model="testInput"
+              type="textarea"
+              :rows="4"
+              placeholder="请输入测试数据（多行输入请按回车换行）&#10;例如：&#10;5&#10;3"
+              class="input-textarea"
+            />
+          </div>
+
           <div class="code-actions">
             <el-button 
               type="primary" 
@@ -216,6 +234,7 @@ const submitLoading = ref(false)
 const runResult = ref(null)
 const mySubmissions = ref([])
 const examples = ref([])
+const testInput = ref('') // 测试输入
 
 const languageMap = {
   java: 'Java',
@@ -352,11 +371,22 @@ const handleRun = async () => {
     const res = await request({
       url: `/experiments/${experimentId}/run`,
       method: 'post',
-      data: { code: code.value, language: selectedLanguage.value }
+      data: { 
+        code: code.value, 
+        language: selectedLanguage.value,
+        input: testInput.value // 传递输入数据
+      }
     })
     runResult.value = res.data
+    
+    if (res.data.success) {
+      ElMessage.success('运行成功')
+    } else {
+      ElMessage.error('运行失败')
+    }
   } catch (e) {
     runResult.value = { success: false, error: e.message || '运行失败' }
+    ElMessage.error('运行异常')
   } finally {
     runLoading.value = false
   }
@@ -601,6 +631,47 @@ onMounted(() => {
 
       &::placeholder {
         color: #6a6a6a;
+      }
+    }
+  }
+
+  .input-section {
+    margin-top: 16px;
+    padding: 16px;
+    background: #f5f7fa;
+    border-radius: 8px;
+
+    .input-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #303133;
+      margin-bottom: 12px;
+
+      .help-icon {
+        color: #909399;
+        cursor: help;
+        font-size: 16px;
+        
+        &:hover {
+          color: #409eff;
+        }
+      }
+    }
+
+    .input-textarea {
+      :deep(.el-textarea__inner) {
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        background: #fff;
+        border: 1px solid #dcdfe6;
+        
+        &:focus {
+          border-color: #409eff;
+        }
       }
     }
   }

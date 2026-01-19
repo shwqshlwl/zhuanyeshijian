@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 实验服务实现类
@@ -163,7 +164,6 @@ public class ExperimentServiceImpl implements ExperimentService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void submitExperiment(Long experimentId, ExperimentSubmitRequest request) {
         // 检查实验是否存在
         Experiment experiment = experimentMapper.selectById(experimentId);
@@ -180,10 +180,60 @@ public class ExperimentServiceImpl implements ExperimentService {
         // 学生权限检查：只能提交自己所选课程的实验
         checkStudentCourseAccess(currentUser.getId(), experiment.getCourseId());
 
-        // 创建提交记录
+        // 在事务中创建提交记录
+        Long submitId = createSubmitRecord(experimentId, currentUser.getId(), request);
+        
+        // 异步评测代码（在事务外执行）
+        log.info("开始异步评测，提交ID: {}, 实验ID: {}, 学生ID: {}, 代码长度: {}", 
+            submitId, experimentId, currentUser.getId(), request.getCode().length());
+        
+        CompletableFuture.runAsync(() -> {
+            try {
+                log.info("评测任务开始执行，提交ID: {}", submitId);
+                evaluateSubmission(submitId, experiment, request.getCode(), request.getLanguage());
+                log.info("评测任务执行完成，提交ID: {}", submitId);
+            } catch (Exception e) {
+                log.error("代码评测失败，提交ID: " + submitId, e);
+                // 更新提交状态为运行错误
+                try {
+                    ExperimentSubmit failedSubmit = experimentSubmitMapper.selectById(submitId);
+                    if (failedSubmit != null) {
+                        failedSubmit.setStatus(5); // 运行错误
+                        failedSubmit.setErrorMessage("评测失败: " + e.getMessage());
+                        experimentSubmitMapper.updateById(failedSubmit);
+                        log.info("已更新提交状态为运行错误，提交ID: {}", submitId);
+                    }
+                } catch (Exception updateEx) {
+                    log.error("更新提交状态失败，提交ID: " + submitId, updateEx);
+                }
+            }
+        }).orTimeout(30, TimeUnit.SECONDS) // 整个评测过程最多30秒
+          .exceptionally(ex -> {
+              log.error("异步任务执行异常或超时，提交ID: " + submitId, ex);
+              // 超时后更新状态
+              try {
+                  ExperimentSubmit timeoutSubmit = experimentSubmitMapper.selectById(submitId);
+                  if (timeoutSubmit != null && timeoutSubmit.getStatus() == 1) {
+                      timeoutSubmit.setStatus(5);
+                      timeoutSubmit.setErrorMessage("评测超时：评测过程超过30秒");
+                      experimentSubmitMapper.updateById(timeoutSubmit);
+                      log.info("评测超时，已更新状态，提交ID: {}", submitId);
+                  }
+              } catch (Exception e) {
+                  log.error("更新超时状态失败，提交ID: " + submitId, e);
+              }
+              return null;
+          });
+    }
+    
+    /**
+     * 创建提交记录（在独立事务中）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public Long createSubmitRecord(Long experimentId, Long studentId, ExperimentSubmitRequest request) {
         ExperimentSubmit submit = new ExperimentSubmit();
         submit.setExperimentId(experimentId);
-        submit.setStudentId(currentUser.getId());
+        submit.setStudentId(studentId);
         submit.setCode(request.getCode());
         submit.setLanguage(request.getLanguage());
         submit.setSubmitTime(LocalDateTime.now());
@@ -191,38 +241,28 @@ public class ExperimentServiceImpl implements ExperimentService {
         submit.setPassCount(0);
         submit.setTotalCount(0);
         experimentSubmitMapper.insert(submit);
-
-        // 异步评测代码
-        Long submitId = submit.getId();
-        CompletableFuture.runAsync(() -> {
-            try {
-                evaluateSubmission(submitId, experiment, request.getCode(), request.getLanguage());
-            } catch (Exception e) {
-                log.error("代码评测失败", e);
-                // 更新提交状态为运行错误
-                ExperimentSubmit failedSubmit = experimentSubmitMapper.selectById(submitId);
-                if (failedSubmit != null) {
-                    failedSubmit.setStatus(5); // 运行错误
-                    failedSubmit.setErrorMessage("评测失败: " + e.getMessage());
-                    experimentSubmitMapper.updateById(failedSubmit);
-                }
-            }
-        });
+        return submit.getId();
     }
 
     /**
      * 评测提交的代码
      */
     private void evaluateSubmission(Long submitId, Experiment experiment, String code, String language) {
+        log.info("开始评测代码，提交ID: {}, 语言: {}", submitId, language);
+        
         ExperimentSubmit submit = experimentSubmitMapper.selectById(submitId);
         if (submit == null) {
+            log.error("未找到提交记录，提交ID: {}", submitId);
             return;
         }
 
         try {
             // 解析测试用例
             String testCasesJson = experiment.getTestCases();
+            log.info("测试用例JSON: {}", testCasesJson);
+            
             if (testCasesJson == null || testCasesJson.isEmpty()) {
+                log.info("没有测试用例，只进行编译检查，提交ID: {}", submitId);
                 // 没有测试用例，只编译检查
                 java.util.Map<String, Object> compileResult = codeExecutionService.compileCode(code, language);
                 if ((Boolean) compileResult.get("success")) {
@@ -230,9 +270,11 @@ public class ExperimentServiceImpl implements ExperimentService {
                     submit.setScore(experiment.getTotalScore());
                     submit.setPassCount(1);
                     submit.setTotalCount(1);
+                    log.info("编译成功，提交ID: {}", submitId);
                 } else {
                     submit.setStatus(4); // 编译错误
                     submit.setErrorMessage((String) compileResult.get("error"));
+                    log.info("编译失败，提交ID: {}, 错误: {}", submitId, compileResult.get("error"));
                 }
                 experimentSubmitMapper.updateById(submit);
                 return;
@@ -240,10 +282,20 @@ public class ExperimentServiceImpl implements ExperimentService {
 
             // 解析测试用例（假设是 JSON 数组格式）
             com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            java.util.List<java.util.Map<String, String>> testCases = objectMapper.readValue(
-                testCasesJson, 
-                new com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.Map<String, String>>>() {}
-            );
+            java.util.List<java.util.Map<String, String>> testCases;
+            try {
+                testCases = objectMapper.readValue(
+                    testCasesJson, 
+                    new com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.Map<String, String>>>() {}
+                );
+                log.info("成功解析测试用例，数量: {}, 提交ID: {}", testCases.size(), submitId);
+            } catch (Exception e) {
+                log.error("解析测试用例失败，提交ID: " + submitId, e);
+                submit.setStatus(5);
+                submit.setErrorMessage("测试用例格式错误: " + e.getMessage());
+                experimentSubmitMapper.updateById(submit);
+                return;
+            }
 
             int totalCount = testCases.size();
             int passCount = 0;
@@ -253,6 +305,8 @@ public class ExperimentServiceImpl implements ExperimentService {
 
             // 运行每个测试用例
             for (int i = 0; i < testCases.size(); i++) {
+                log.info("执行测试用例 {}/{}, 提交ID: {}", i + 1, testCases.size(), submitId);
+                
                 java.util.Map<String, String> testCase = testCases.get(i);
                 String input = testCase.get("input");
                 String expectedOutput = testCase.get("output");
@@ -269,12 +323,18 @@ public class ExperimentServiceImpl implements ExperimentService {
                 boolean success = (Boolean) execResult.get("success");
                 String actualOutput = (String) execResult.get("output");
                 String error = (String) execResult.get("error");
+                
+                log.info("测试用例 {} 执行结果: success={}, output={}, error={}", 
+                    i + 1, success, actualOutput, error);
 
                 // 比较输出
                 boolean passed = success && compareOutput(expectedOutput, actualOutput);
                 if (passed) {
                     passCount++;
                 }
+                
+                log.info("测试用例 {} 比较结果: passed={}, 期望输出={}, 实际输出={}", 
+                    i + 1, passed, expectedOutput, actualOutput);
 
                 // 记录详细结果
                 java.util.Map<String, Object> detail = new java.util.HashMap<>();
@@ -300,6 +360,8 @@ public class ExperimentServiceImpl implements ExperimentService {
 
             // 计算得分
             int score = (int) Math.round((double) passCount / totalCount * experiment.getTotalScore());
+            
+            log.info("评测完成，提交ID: {}, 通过: {}/{}, 得分: {}", submitId, passCount, totalCount, score);
 
             // 更新提交记录
             submit.setStatus(passCount == totalCount ? 2 : 3); // 2-通过，3-未通过
@@ -310,9 +372,11 @@ public class ExperimentServiceImpl implements ExperimentService {
             submit.setMemoryUsed(maxMemoryUsed);
             submit.setResultDetail(objectMapper.writeValueAsString(resultDetails));
             experimentSubmitMapper.updateById(submit);
+            
+            log.info("已更新提交记录，提交ID: {}, 状态: {}", submitId, submit.getStatus());
 
         } catch (Exception e) {
-            log.error("评测代码失败", e);
+            log.error("评测代码失败，提交ID: " + submitId, e);
             submit.setStatus(5); // 运行错误
             submit.setErrorMessage("评测失败: " + e.getMessage());
             experimentSubmitMapper.updateById(submit);
@@ -398,12 +462,14 @@ public class ExperimentServiceImpl implements ExperimentService {
         vo.setErrorMessage(submit.getErrorMessage());
         vo.setResultDetail(submit.getResultDetail());
         vo.setSubmitTime(submit.getSubmitTime());
+        vo.setCode(submit.getCode()); // 添加代码字段
+        vo.setLanguage(submit.getLanguage()); // 添加语言字段
 
         return vo;
     }
 
     @Override
-    public java.util.Map<String, Object> runCode(Long experimentId, String code, String language) {
+    public java.util.Map<String, Object> runCode(Long experimentId, String code, String language, String input) {
         // 检查实验是否存在
         Experiment experiment = experimentMapper.selectById(experimentId);
         if (experiment == null) {
@@ -421,7 +487,7 @@ public class ExperimentServiceImpl implements ExperimentService {
             Integer timeLimit = experiment.getTimeLimit() != null ? experiment.getTimeLimit() : 5000;
             Integer memoryLimit = experiment.getMemoryLimit() != null ? experiment.getMemoryLimit() : 256;
             
-            return codeExecutionService.executeCode(code, language, null, timeLimit, memoryLimit);
+            return codeExecutionService.executeCode(code, language, input, timeLimit, memoryLimit);
         } catch (Exception e) {
             java.util.Map<String, Object> result = new java.util.HashMap<>();
             result.put("success", false);

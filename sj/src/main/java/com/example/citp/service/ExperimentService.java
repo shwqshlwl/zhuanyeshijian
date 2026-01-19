@@ -52,7 +52,7 @@ public interface ExperimentService {
     /**
      * 运行测试代码
      */
-    Map<String, Object> runCode(Long experimentId, String code, String language);
+    Map<String, Object> runCode(Long experimentId, String code, String language, String input);
 
     /**
      * 获取我的提交历史

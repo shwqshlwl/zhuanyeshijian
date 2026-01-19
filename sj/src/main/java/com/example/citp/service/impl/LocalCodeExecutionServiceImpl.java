@@ -138,10 +138,12 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
                 return result;
             }
 
-            // 运行
-            Process runProcess = Runtime.getRuntime().exec(
-                new String[]{"java", "-Xmx256m", "-cp", workDir, className}
+            // 运行（指定 UTF-8 编码）
+            ProcessBuilder runBuilder = new ProcessBuilder(
+                "java", "-Dfile.encoding=UTF-8", "-Xmx256m", "-cp", workDir, className
             );
+            runBuilder.directory(new File(workDir));
+            Process runProcess = runBuilder.start();
 
             // 写入输入
             if (input != null && !input.isEmpty()) {
@@ -192,19 +194,34 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
         Map<String, Object> result = new HashMap<>();
 
         try {
-            // 检查 Python 是否可用
-            if (!isCommandAvailable("python")) {
+            // 尝试多个 Python 命令
+            String[] pythonCommands = {"python", "python3", "py"};
+            String pythonCmd = null;
+            
+            for (String cmd : pythonCommands) {
+                if (isCommandAvailable(cmd)) {
+                    pythonCmd = cmd;
+                    log.info("找到可用的 Python 命令: {}", cmd);
+                    break;
+                }
+            }
+
+            if (pythonCmd == null) {
                 result.put("success", false);
-                result.put("error", "Python 未安装。\n\n请安装 Python：\n1. 下载：https://www.python.org/downloads/\n2. 安装时勾选 'Add Python to PATH'\n3. 重启后端服务");
+                result.put("error", "Python 未安装或未添加到 PATH。\n\n请安装 Python：\n1. 下载：https://www.python.org/downloads/\n2. 安装时勾选 'Add Python to PATH'\n3. 重启 IDE 和后端服务\n\n提示：如果已安装 Python，请确保命令 'python'、'python3' 或 'py' 可在命令行中使用");
                 return result;
             }
 
-            // 写入源文件
+            // 写入源文件（使用 UTF-8 编码）
             String sourceFile = workDir + File.separator + "main.py";
             Files.writeString(Paths.get(sourceFile), code, StandardCharsets.UTF_8);
 
-            // 运行
-            Process runProcess = Runtime.getRuntime().exec(new String[]{"python", sourceFile});
+            // 运行（设置 UTF-8 环境）
+            ProcessBuilder pb = new ProcessBuilder(pythonCmd, "-u", sourceFile);
+            pb.directory(new File(workDir));
+            // 设置环境变量，确保 Python 使用 UTF-8
+            pb.environment().put("PYTHONIOENCODING", "utf-8");
+            Process runProcess = pb.start();
 
             // 写入输入
             if (input != null && !input.isEmpty()) {
