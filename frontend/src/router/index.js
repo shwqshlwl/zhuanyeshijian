@@ -23,7 +23,7 @@ const routes = [
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('@/views/dashboard/index.vue'),
-        meta: { title: '首页', icon: 'HomeFilled', roles: ['student', 'teacher', 'admin'] }
+        meta: { title: '首页', icon: 'HomeFilled', roles: ['teacher', 'admin'] }
       },
       {
         path: 'ai',
@@ -225,10 +225,11 @@ router.beforeEach((to, from, next) => {
     return
   }
 
-  // 已登录访问登录页，跳转到首页
+  // 已登录访问登录页，根据角色跳转
   if (to.name === 'Login' && userStore.token) {
-    console.log('路由守卫 - 已登录访问登录页，重定向到首页')
-    next({ name: 'Dashboard' })
+    console.log('路由守卫 - 已登录访问登录页，根据角色重定向')
+    const redirectPath = userStore.isStudent ? '/my-courses' : '/dashboard'
+    next(redirectPath)
     return
   }
 
@@ -246,9 +247,10 @@ router.beforeEach((to, from, next) => {
     })
 
     if (!to.meta.roles.includes(userRole)) {
-      // 无权限，跳转到首页
-      console.log('路由守卫 - 权限不足，重定向到首页')
-      next({ name: 'Dashboard' })
+      // 无权限，根据角色跳转到对应的默认页面
+      console.log('路由守卫 - 权限不足，重定向到默认页面')
+      const defaultPath = userRole === 'student' ? '/my-courses' : '/dashboard'
+      next(defaultPath)
       return
     }
   }

@@ -110,7 +110,13 @@ const handleLogin = async () => {
       try {
         await userStore.login(loginForm)
         ElMessage.success('登录成功')
-        const redirect = route.query.redirect || '/'
+        
+        // 根据用户角色跳转到不同页面
+        let redirect = route.query.redirect
+        if (!redirect) {
+          // 学生跳转到我的课程，教师和管理员跳转到首页
+          redirect = userStore.isStudent ? '/my-courses' : '/'
+        }
         router.push(redirect)
       } catch (error) {
         console.error('登录失败:', error)
