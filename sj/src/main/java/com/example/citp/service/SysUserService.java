@@ -55,4 +55,29 @@ public interface SysUserService {
      * 根据学号查询学生
      */
     UserInfoVO getStudentByStudentNo(String studentNo);
+
+    /**
+     * 获取所有用户列表（管理员专用）
+     */
+    Page<UserInfoVO> getAllUsers(Integer pageNum, Integer pageSize, String keyword, Integer userType);
+
+    /**
+     * 更新用户状态（管理员专用）
+     */
+    void updateUserStatus(Long userId, Integer status);
+
+    /**
+     * 重置用户密码（管理员专用）
+     */
+    void resetUserPassword(Long userId);
+
+    /**
+     * 删除用户（管理员专用）
+     */
+    void deleteUser(Long userId);
+
+    /**
+     * 获取管理员统计数据
+     */
+    com.example.citp.model.vo.AdminStatisticsVO getAdminStatistics();
 }

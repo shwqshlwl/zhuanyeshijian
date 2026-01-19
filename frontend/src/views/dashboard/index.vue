@@ -15,47 +15,78 @@
 
     <!-- 统计卡片 -->
     <el-row :gutter="20" class="stat-row">
+      <!-- 管理员：总用户数 -->
+      <el-col v-if="userStore.isAdmin" :xs="12" :sm="6">
+        <div class="stat-card stat-card-red">
+          <div class="stat-icon">
+            <el-icon :size="28"><User /></el-icon>
+          </div>
+          <div class="stat-info">
+            <div class="stat-value">{{ stats.totalUsers || 0 }}</div>
+            <div class="stat-label">总用户数</div>
+            <div v-if="stats.totalTeachers" class="stat-detail">
+              教师 {{ stats.totalTeachers }} · 学生 {{ stats.totalStudents }}
+            </div>
+          </div>
+        </div>
+      </el-col>
+      <!-- 教师：我的课程数 -->
+      <el-col v-if="!userStore.isAdmin" :xs="12" :sm="6">
+        <div class="stat-card stat-card-blue">
+          <div class="stat-icon">
+            <el-icon :size="28"><Reading /></el-icon>
+          </div>
+          <div class="stat-info">
+            <div class="stat-value">{{ stats.courseCount || 0 }}</div>
+            <div class="stat-label">我的课程</div>
+          </div>
+        </div>
+      </el-col>
+      <!-- 课程数 -->
       <el-col :xs="12" :sm="6">
         <div class="stat-card stat-card-blue">
           <div class="stat-icon">
             <el-icon :size="28"><Reading /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-value">{{ stats.courseCount }}</div>
-            <div class="stat-label">课程数量</div>
+            <div class="stat-value">{{ userStore.isAdmin ? (stats.totalCourses || 0) : (stats.courseCount || 0) }}</div>
+            <div class="stat-label">{{ userStore.isAdmin ? '总课程数' : '我的课程' }}</div>
           </div>
         </div>
       </el-col>
+      <!-- 班级数 -->
       <el-col :xs="12" :sm="6">
         <div class="stat-card stat-card-green">
           <div class="stat-icon">
             <el-icon :size="28"><School /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-value">{{ stats.classCount }}</div>
-            <div class="stat-label">班级数量</div>
+            <div class="stat-value">{{ userStore.isAdmin ? (stats.totalClasses || 0) : (stats.classCount || 0) }}</div>
+            <div class="stat-label">{{ userStore.isAdmin ? '总班级数' : '我的班级' }}</div>
           </div>
         </div>
       </el-col>
+      <!-- 作业数 -->
       <el-col :xs="12" :sm="6">
         <div class="stat-card stat-card-orange">
           <div class="stat-icon">
             <el-icon :size="28"><EditPen /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-value">{{ stats.homeworkCount }}</div>
-            <div class="stat-label">作业数量</div>
+            <div class="stat-value">{{ userStore.isAdmin ? (stats.totalHomeworks || 0) : (stats.homeworkCount || 0) }}</div>
+            <div class="stat-label">{{ userStore.isAdmin ? '总作业数' : '我的作业' }}</div>
           </div>
         </div>
       </el-col>
+      <!-- 考试数 -->
       <el-col :xs="12" :sm="6">
         <div class="stat-card stat-card-purple">
           <div class="stat-icon">
             <el-icon :size="28"><Document /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-value">{{ stats.examCount }}</div>
-            <div class="stat-label">考试数量</div>
+            <div class="stat-value">{{ userStore.isAdmin ? (stats.totalExams || 0) : (stats.examCount || 0) }}</div>
+            <div class="stat-label">{{ userStore.isAdmin ? '总考试数' : '我的考试' }}</div>
           </div>
         </div>
       </el-col>
@@ -137,14 +168,24 @@ import { getCourseList } from '@/api/course'
 import { getClassList } from '@/api/class'
 import { getHomeworkList } from '@/api/homework'
 import { getExamList } from '@/api/exam'
+import request from '@/utils/request'
 
 const userStore = useUserStore()
 
 const stats = ref({
+  // 教师统计
   courseCount: 0,
   classCount: 0,
   homeworkCount: 0,
-  examCount: 0
+  examCount: 0,
+  // 管理员统计
+  totalUsers: 0,
+  totalTeachers: 0,
+  totalStudents: 0,
+  totalCourses: 0,
+  totalClasses: 0,
+  totalHomeworks: 0,
+  totalExams: 0
 })
 
 const notices = ref([
@@ -163,9 +204,31 @@ const getGreeting = () => {
   return '晚上好'
 }
 
-const fetchStats = async () => {
+// 获取管理员统计数据
+const fetchAdminStats = async () => {
   try {
-    console.log('开始获取首页统计数据...')
+    console.log('获取管理员统计数据...')
+    const data = await request.get('/admin/statistics')
+    stats.value = {
+      ...stats.value,
+      totalUsers: data.data.totalUsers,
+      totalTeachers: data.data.totalTeachers,
+      totalStudents: data.data.totalStudents,
+      totalCourses: data.data.totalCourses,
+      totalClasses: data.data.totalClasses,
+      totalHomeworks: data.data.totalHomeworks,
+      totalExams: data.data.totalExams
+    }
+    console.log('管理员统计数据:', stats.value)
+  } catch (error) {
+    console.error('获取管理员统计数据失败:', error)
+  }
+}
+
+// 获取教师统计数据
+const fetchTeacherStats = async () => {
+  try {
+    console.log('获取教师统计数据...')
     const [courseRes, classRes, homeworkRes, examRes] = await Promise.all([
       getCourseList({ pageNum: 1, pageSize: 1 }),
       getClassList({ pageNum: 1, pageSize: 1 }),
@@ -173,25 +236,25 @@ const fetchStats = async () => {
       getExamList({ pageNum: 1, pageSize: 1 })
     ])
 
-    console.log('课程API响应:', courseRes)
-    console.log('课程data详情:', courseRes.data)
-    console.log('班级API响应:', classRes)
-    console.log('班级data详情:', classRes.data)
-    console.log('作业API响应:', homeworkRes)
-    console.log('作业data详情:', homeworkRes.data)
-    console.log('考试API响应:', examRes)
-    console.log('考试data详情:', examRes.data)
-
     stats.value = {
+      ...stats.value,
       courseCount: courseRes.data?.total || 0,
       classCount: classRes.data?.total || 0,
       homeworkCount: homeworkRes.data?.total || 0,
       examCount: examRes.data?.total || 0
     }
 
-    console.log('统计数据结果:', stats.value)
+    console.log('教师统计数据:', stats.value)
   } catch (error) {
-    console.error('获取统计数据失败:', error)
+    console.error('获取教师统计数据失败:', error)
+  }
+}
+
+const fetchStats = async () => {
+  if (userStore.isAdmin) {
+    await fetchAdminStats()
+  } else {
+    await fetchTeacherStats()
   }
 }
 
@@ -259,25 +322,35 @@ onMounted(() => {
       font-weight: 700;
       color: #1e293b;
     }
-    
+
     .stat-label {
       font-size: 13px;
       color: #64748b;
       margin-top: 4px;
     }
-    
+
+    .stat-detail {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+
+    &.stat-card-red .stat-icon {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+    }
+
     &.stat-card-blue .stat-icon {
       background: linear-gradient(135deg, #3b82f6, #1d4ed8);
     }
-    
+
     &.stat-card-green .stat-icon {
       background: linear-gradient(135deg, #10b981, #059669);
     }
-    
+
     &.stat-card-orange .stat-icon {
       background: linear-gradient(135deg, #f59e0b, #d97706);
     }
-    
+
     &.stat-card-purple .stat-icon {
       background: linear-gradient(135deg, #8b5cf6, #7c3aed);
     }

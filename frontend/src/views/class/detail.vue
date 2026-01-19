@@ -33,7 +33,7 @@
         <template #header>
           <div class="card-header">
             <span>关联课程</span>
-            <el-button type="primary" size="small" @click="showBindCourseDialog = true" v-if="userStore.isTeacher">
+            <el-button type="primary" size="small" @click="handleOpenBindDialog" v-if="userStore.isTeacher">
               <el-icon><Plus /></el-icon>关联课程
             </el-button>
           </div>
@@ -139,12 +139,24 @@
     <el-dialog v-model="showBindCourseDialog" title="关联课程" width="500px">
       <el-form :model="bindCourseForm" label-width="80px">
         <el-form-item label="选择课程">
-          <el-select v-model="bindCourseForm.courseId" placeholder="请选择课程" style="width: 100%" filterable>
+          <el-select
+            v-model="bindCourseForm.courseIds"
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            filterable
+            placeholder="请选择课程（可多选）"
+            style="width: 100%"
+            clearable
+          >
             <el-option v-for="c in availableCourses" :key="c.id" :label="c.courseName" :value="c.id">
               <span>{{ c.courseName }}</span>
               <span style="color: #909399; margin-left: 8px">{{ c.courseCode }}</span>
             </el-option>
           </el-select>
+          <div style="font-size: 12px; color: #909399; margin-top: 4px">
+            已选择 {{ bindCourseForm.courseIds?.length || 0 }} 门课程
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -181,7 +193,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { getClassById, updateClass, addStudentToClass, removeStudentFromClass } from '@/api/class'
+import { getClassById, updateClass, addStudentToClass, removeStudentFromClass, getClassCourses, setClassCourses } from '@/api/class'
 import { getCourseList } from '@/api/course'
 import { batchImportStudents, getStudentByStudentNo } from '@/api/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -215,7 +227,7 @@ const importContent = ref('')
 // 关联课程
 const showBindCourseDialog = ref(false)
 const bindCourseLoading = ref(false)
-const bindCourseForm = reactive({ courseId: '' })
+const bindCourseForm = reactive({ courseIds: [] })
 const availableCourses = ref([])
 
 // 编辑班级
@@ -232,6 +244,9 @@ const fetchClassDetail = async () => {
     const res = await getClassById(classId)
     classInfo.value = res.data || {}
     relatedCourses.value = res.data?.courses || []
+    console.log('✅ 班级详情加载成功')
+    console.log('📚 关联课程数量:', relatedCourses.value.length)
+    console.log('📋 关联课程列表:', relatedCourses.value)
   } finally {
     loading.value = false
   }
@@ -253,10 +268,21 @@ const fetchStudents = async () => {
   }
 }
 
-// 获取可用课程列表
+// 获取可用课程列表（排除已关联的课程）
 const fetchAvailableCourses = async () => {
   const res = await getCourseList({ pageNum: 1, pageSize: 100 })
-  availableCourses.value = res.data?.records || []
+  const allCourses = res.data?.records || []
+
+  // 过滤掉已关联的课程
+  const linkedCourseIds = relatedCourses.value.map(c => c.id)
+  availableCourses.value = allCourses.filter(c => !linkedCourseIds.includes(c.id))
+}
+
+// 打开关联课程对话框
+const handleOpenBindDialog = async () => {
+  bindCourseForm.courseIds = []
+  await fetchAvailableCourses()
+  showBindCourseDialog.value = true
 }
 
 // 添加学生
@@ -341,36 +367,46 @@ const handleBatchImport = async () => {
   }
 }
 
-// 关联课程
+// 关联课程（添加多个课程）
 const handleBindCourse = async () => {
-  if (!bindCourseForm.courseId) {
-    ElMessage.warning('请选择课程')
+  if (!bindCourseForm.courseIds || bindCourseForm.courseIds.length === 0) {
+    ElMessage.warning('请至少选择一门课程')
     return
   }
   bindCourseLoading.value = true
   try {
-    await request({
-      url: `/classes/${classId}/bindCourse/${bindCourseForm.courseId}`,
-      method: 'put'
-    })
+    // 合并现有的课程ID和新选择的课程ID
+    const existingCourseIds = relatedCourses.value.map(c => c.id)
+    const allCourseIds = [...new Set([...existingCourseIds, ...bindCourseForm.courseIds])]
+
+    // 使用新的批量设置API
+    await setClassCourses(classId, allCourseIds)
     ElMessage.success('关联成功')
     showBindCourseDialog.value = false
-    bindCourseForm.courseId = ''
-    fetchClassDetail()
+    bindCourseForm.courseIds = []
+    await fetchClassDetail()
+    await fetchAvailableCourses()
   } finally {
     bindCourseLoading.value = false
   }
 }
 
-// 取消关联课程
+// 取消关联课程（移除单个课程）
 const handleUnbindCourse = (row) => {
   ElMessageBox.confirm(`确定要取消关联课程"${row.courseName}"吗？`, '提示', { type: 'warning' }).then(async () => {
-    await request({
-      url: `/classes/${classId}/unbindCourse/${row.id}`,
-      method: 'delete'
-    })
-    ElMessage.success('取消关联成功')
-    fetchClassDetail()
+    try {
+      // 从现有课程ID列表中移除该课程
+      const existingCourseIds = relatedCourses.value.map(c => c.id)
+      const updatedCourseIds = existingCourseIds.filter(id => id !== row.id)
+
+      // 使用新的批量设置API
+      await setClassCourses(classId, updatedCourseIds)
+      ElMessage.success('取消关联成功')
+      await fetchClassDetail()
+      await fetchAvailableCourses()
+    } catch (e) {
+      console.error(e)
+    }
   })
 }
 
@@ -404,7 +440,6 @@ const handleSaveEdit = async () => {
 onMounted(() => {
   fetchClassDetail()
   fetchStudents()
-  fetchAvailableCourses()
 })
 </script>
 

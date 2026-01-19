@@ -4,6 +4,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
+import java.util.List;
+
 /**
  * 班级请求 DTO
  */
@@ -25,8 +27,11 @@ public class ClassRequest {
     @Schema(description = "专业")
     private String major;
 
-    @Schema(description = "关联课程ID")
+    @Schema(description = "关联课程ID（单个，保持向后兼容）")
     private Long courseId;
+
+    @Schema(description = "关联课程ID列表（多对多）")
+    private List<Long> courseIds;
 
     @Schema(description = "班级描述")
     private String description;

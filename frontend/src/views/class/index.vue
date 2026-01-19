@@ -48,6 +48,24 @@
         </el-table-column>
         <el-table-column prop="grade" label="年级" width="100" />
         <el-table-column prop="major" label="专业" min-width="150" />
+        <el-table-column label="关联课程" min-width="200">
+          <template #default="{ row }">
+            <template v-if="row.courses && row.courses.length > 0">
+              <el-tag
+                v-for="course in row.courses.slice(0, 2)"
+                :key="course.id"
+                size="small"
+                style="margin-right: 4px"
+              >
+                {{ course.courseName }}
+              </el-tag>
+              <el-tag v-if="row.courses.length > 2" size="small" type="info">
+                +{{ row.courses.length - 2 }}
+              </el-tag>
+            </template>
+            <span v-else style="color: #909399">未关联课程</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="studentCount" label="学生人数" width="100" />
         <el-table-column prop="createTime" label="创建时间" width="180" />
         <el-table-column label="操作" width="200" fixed="right">
@@ -88,6 +106,29 @@
         <el-form-item label="专业" prop="major">
           <el-input v-model="classForm.major" placeholder="请输入专业名称" />
         </el-form-item>
+        <el-form-item label="关联课程">
+          <el-select
+            v-model="classForm.courseIds"
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            filterable
+            placeholder="请选择关联课程（可多选）"
+            style="width: 100%"
+            clearable
+            @visible-change="loadCourses"
+          >
+            <el-option
+              v-for="course in courseList"
+              :key="course.id"
+              :label="course.courseName"
+              :value="course.id"
+            />
+          </el-select>
+          <div class="form-tip">
+            已选择 {{ classForm.courseIds?.length || 0 }} 门课程
+          </div>
+        </el-form-item>
         <el-form-item label="描述">
           <el-input v-model="classForm.description" type="textarea" :rows="3" placeholder="班级描述（选填）" />
         </el-form-item>
@@ -103,7 +144,8 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
-import { getClassList, createClass, updateClass, deleteClass } from '@/api/class'
+import { getClassList, createClass, updateClass, deleteClass, getClassCourses } from '@/api/class'
+import { getCourseList } from '@/api/course'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request'
 
@@ -122,11 +164,13 @@ const isEdit = ref(false)
 const submitLoading = ref(false)
 const formRef = ref()
 const currentId = ref(null)
-const classForm = reactive({ className: '', classCode: '', grade: '', major: '', description: '' })
-const formRules = { 
+const classForm = reactive({ className: '', classCode: '', grade: '', major: '', courseIds: [], description: '' })
+const formRules = {
   className: [{ required: true, message: '请输入班级名称', trigger: 'blur' }],
   classCode: [{ required: true, message: '请输入班级编码', trigger: 'blur' }]
 }
+
+const courseList = ref([])
 
 const fetchList = async () => {
   loading.value = true
@@ -160,24 +204,51 @@ const toggleGroupView = () => {
 
 const handleSearch = () => { pageNum.value = 1; fetchList() }
 
+const loadCourses = async (visible) => {
+  if (visible && courseList.value.length === 0) {
+    try {
+      const res = await getCourseList({ pageNum: 1, pageSize: 100 })
+      courseList.value = res.data?.records || []
+    } catch (error) {
+      console.error('加载课程列表失败:', error)
+    }
+  }
+}
+
 const handleAdd = () => {
   isEdit.value = false
   currentId.value = null
-  Object.assign(classForm, { className: '', classCode: '', grade: '', major: '', description: '' })
+  Object.assign(classForm, { className: '', classCode: '', grade: '', major: '', courseIds: [], description: '' })
   dialogVisible.value = true
 }
 
-const handleEdit = (row) => {
+const handleEdit = async (row) => {
   isEdit.value = true
   currentId.value = row.id
-  Object.assign(classForm, { 
+
+  // 先初始化表单数据
+  Object.assign(classForm, {
     className: row.className,
-    classCode: row.code, 
-    grade: row.grade, 
-    major: row.major, 
-    description: row.description 
+    classCode: row.classCode,
+    grade: row.grade,
+    major: row.major,
+    courseIds: [],
+    description: row.description
   })
+
+  // 打开对话框
   dialogVisible.value = true
+
+  // 异步加载班级关联的课程ID列表
+  try {
+    const res = await getClassCourses(row.id)
+    const courses = res.data || []
+    classForm.courseIds = courses.map(c => c.id)
+    console.log('已加载课程关联:', classForm.courseIds)
+  } catch (error) {
+    console.error('加载班级课程失败:', error)
+    ElMessage.warning('加载关联课程失败')
+  }
 }
 
 const handleSubmit = async () => {
@@ -185,6 +256,8 @@ const handleSubmit = async () => {
     if (valid) {
       submitLoading.value = true
       try {
+        console.log('提交数据:', classForm)
+
         if (isEdit.value) {
           await updateClass(currentId.value, classForm)
           ElMessage.success('更新成功')
@@ -192,8 +265,11 @@ const handleSubmit = async () => {
           await createClass(classForm)
           ElMessage.success('创建成功')
         }
+
         dialogVisible.value = false
         fetchList()
+      } catch (error) {
+        ElMessage.error(error.message || '保存失败')
       } finally {
         submitLoading.value = false
       }
@@ -222,7 +298,13 @@ onMounted(() => fetchList())
     background: #fff;
     border-radius: 12px;
   }
-  
+
+  .form-tip {
+    font-size: 12px;
+    color: #909399;
+    margin-top: 4px;
+  }
+
   .group-view {
     .grade-group {
       margin-bottom: 24px;

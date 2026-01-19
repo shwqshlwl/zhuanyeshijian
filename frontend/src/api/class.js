@@ -58,3 +58,20 @@ export function removeStudentFromClass(classId, studentId) {
     method: 'delete'
   })
 }
+
+// 获取班级关联的课程
+export function getClassCourses(classId) {
+  return request({
+    url: `/classes/${classId}/courses`,
+    method: 'get'
+  })
+}
+
+// 设置班级关联的课程
+export function setClassCourses(classId, courseIds) {
+  return request({
+    url: `/classes/${classId}/courses`,
+    method: 'put',
+    data: courseIds
+  })
+}

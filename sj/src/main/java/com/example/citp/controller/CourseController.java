@@ -3,8 +3,10 @@ package com.example.citp.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.citp.common.Result;
 import com.example.citp.model.dto.CourseRequest;
+import com.example.citp.model.entity.ClassEntity;
 import com.example.citp.model.vo.CourseDetailVO;
 import com.example.citp.model.vo.CourseVO;
+import com.example.citp.service.CourseClassService;
 import com.example.citp.service.CourseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,6 +26,7 @@ import java.util.List;
 public class CourseController {
 
     private final CourseService courseService;
+    private final CourseClassService courseClassService;
 
     @GetMapping
     @Operation(summary = "分页查询课程列表")
@@ -90,5 +93,12 @@ public class CourseController {
     public Result<List<CourseVO>> getStudentCourses() {
         List<CourseVO> courses = courseService.getStudentCourses();
         return Result.success(courses);
+    }
+
+    @GetMapping("/{id}/classes")
+    @Operation(summary = "获取课程关联的班级列表")
+    public Result<List<ClassEntity>> getCourseClasses(@PathVariable Long id) {
+        List<ClassEntity> classes = courseClassService.getClassesByCourseId(id);
+        return Result.success(classes);
     }
 }

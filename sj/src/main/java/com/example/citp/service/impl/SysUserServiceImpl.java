@@ -8,6 +8,9 @@ import com.example.citp.exception.BusinessException;
 import com.example.citp.mapper.ClassMapper;
 import com.example.citp.mapper.SysRoleMapper;
 import com.example.citp.mapper.SysUserMapper;
+import com.example.citp.mapper.CourseMapper;
+import com.example.citp.mapper.HomeworkMapper;
+import com.example.citp.mapper.ExamMapper;
 import com.example.citp.model.dto.*;
 import com.example.citp.model.entity.ClassEntity;
 import com.example.citp.model.entity.SysUser;
@@ -39,6 +42,9 @@ public class SysUserServiceImpl implements SysUserService {
     private final SysUserMapper sysUserMapper;
     private final SysRoleMapper sysRoleMapper;
     private final ClassMapper classMapper;
+    private final CourseMapper courseMapper;
+    private final HomeworkMapper homeworkMapper;
+    private final ExamMapper examMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final JdbcTemplate jdbcTemplate;
@@ -163,9 +169,10 @@ public class SysUserServiceImpl implements SysUserService {
 
         for (BatchImportStudentRequest.StudentInfo studentInfo : request.getStudents()) {
             try {
-                // 检查学号是否已存在
+                // 检查学号是否已存在（只查学生类型）
                 SysUser existUser = sysUserMapper.selectOne(new LambdaQueryWrapper<SysUser>()
-                        .eq(SysUser::getStudentNo, studentInfo.getStudentNo()));
+                        .eq(SysUser::getStudentNo, studentInfo.getStudentNo())
+                        .eq(SysUser::getUserType, 1)); // 必须是学生类型
 
                 Long studentId;
                 if (existUser != null) {
@@ -283,6 +290,114 @@ public class SysUserServiceImpl implements SysUserService {
         }
 
         return BeanUtil.copyProperties(student, UserInfoVO.class);
+    }
+
+    @Override
+    public Page<UserInfoVO> getAllUsers(Integer pageNum, Integer pageSize, String keyword, Integer userType) {
+        Page<SysUser> page = new Page<>(pageNum, pageSize);
+
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
+
+        // 按用户类型筛选
+        if (userType != null) {
+            wrapper.eq(SysUser::getUserType, userType);
+        }
+
+        // 关键词搜索
+        if (StringUtils.hasText(keyword)) {
+            wrapper.and(w -> w.like(SysUser::getRealName, keyword)
+                    .or().like(SysUser::getUsername, keyword)
+                    .or().like(SysUser::getStudentNo, keyword)
+                    .or().like(SysUser::getTeacherNo, keyword)
+                    .or().like(SysUser::getEmail, keyword));
+        }
+
+        wrapper.orderByDesc(SysUser::getCreateTime);
+
+        Page<SysUser> userPage = sysUserMapper.selectPage(page, wrapper);
+
+        Page<UserInfoVO> voPage = new Page<>(userPage.getCurrent(), userPage.getSize(), userPage.getTotal());
+        voPage.setRecords(userPage.getRecords().stream()
+                .map(u -> BeanUtil.copyProperties(u, UserInfoVO.class))
+                .toList());
+
+        return voPage;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateUserStatus(Long userId, Integer status) {
+        SysUser user = sysUserMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        user.setStatus(status);
+        sysUserMapper.updateById(user);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void resetUserPassword(Long userId) {
+        SysUser user = sysUserMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        // 重置为默认密码 123456
+        user.setPassword(passwordEncoder.encode("123456"));
+        sysUserMapper.updateById(user);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteUser(Long userId) {
+        SysUser user = sysUserMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        // 不允许删除管理员
+        if (user.getUserType() == 3) {
+            throw new BusinessException("不允许删除管理员账号");
+        }
+
+        // 逻辑删除
+        sysUserMapper.deleteById(userId);
+    }
+
+    @Override
+    public com.example.citp.model.vo.AdminStatisticsVO getAdminStatistics() {
+        com.example.citp.model.vo.AdminStatisticsVO vo = new com.example.citp.model.vo.AdminStatisticsVO();
+
+        // 统计用户数
+        Long totalUsers = sysUserMapper.selectCount(null);
+        Long totalTeachers = sysUserMapper.selectCount(new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getUserType, 2));
+        Long totalStudents = sysUserMapper.selectCount(new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getUserType, 1));
+
+        // 统计课程数
+        Long totalCourses = courseMapper.selectCount(null);
+
+        // 统计班级数
+        Long totalClasses = classMapper.selectCount(null);
+
+        // 统计作业数
+        Long totalHomeworks = homeworkMapper.selectCount(null);
+
+        // 统计考试数
+        Long totalExams = examMapper.selectCount(null);
+
+        vo.setTotalUsers(totalUsers);
+        vo.setTotalTeachers(totalTeachers);
+        vo.setTotalStudents(totalStudents);
+        vo.setTotalCourses(totalCourses);
+        vo.setTotalClasses(totalClasses);
+        vo.setTotalHomeworks(totalHomeworks);
+        vo.setTotalExams(totalExams);
+
+        return vo;
     }
 
     /**

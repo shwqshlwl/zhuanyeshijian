@@ -88,43 +88,86 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { ElMessageBox } from 'element-plus'
+import request from '@/utils/request'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
 const isCollapse = ref(false)
+const userModules = ref([])
 
 const currentRoute = computed(() => route)
 const activeMenu = computed(() => route.path)
 
+// 加载用户可见模块
+const loadUserModules = async () => {
+  if (!userStore.token) {
+    userModules.value = []
+    return
+  }
+
+  try {
+    // 从localStorage获取缓存
+    const cached = localStorage.getItem('userModules')
+    if (cached) {
+      userModules.value = JSON.parse(cached)
+    }
+
+    // 从API获取最新数据
+    const data = await request.get('/user/modules')
+    userModules.value = data.data || []
+
+    // 缓存到localStorage
+    localStorage.setItem('userModules', JSON.stringify(userModules.value))
+  } catch (error) {
+    console.error('加载用户模块失败:', error)
+    // 如果API调用失败，使用缓存数据
+    const cached = localStorage.getItem('userModules')
+    if (cached) {
+      userModules.value = JSON.parse(cached)
+    }
+  }
+}
+
 // 获取菜单路由
 const menuRoutes = computed(() => {
-  const mainRoute = router.options.routes.find(r => r.path === '/')
-  const allRoutes = mainRoute?.children?.filter(r => !r.meta?.hidden) || []
-
-  // 如果未登录，只显示不需要登录的路由
+  // 如果未登录，显示AI助教
   if (!userStore.token) {
+    const mainRoute = router.options.routes.find(r => r.path === '/')
+    const allRoutes = mainRoute?.children?.filter(r => !r.meta?.hidden) || []
     return allRoutes.filter(route => route.meta?.requiresAuth === false)
   }
 
-  // 根据用户角色过滤菜单
-  const userRole = userStore.isStudent ? 'student' : userStore.isTeacher ? 'teacher' : 'admin'
-
-  const filteredRoutes = allRoutes.filter(route => {
-    // 如果路由没有定义roles，则所有角色都可以访问
-    if (!route.meta?.roles || route.meta.roles.length === 0) {
-      return true
+  // 使用API返回的模块列表构建菜单
+  return userModules.value.map(module => ({
+    path: module.path.startsWith('/') ? module.path.substring(1) : module.path,
+    meta: {
+      title: module.moduleName,
+      icon: module.icon
     }
-    // 检查用户角色是否在允许的角色列表中
-    return route.meta.roles.includes(userRole)
-  })
+  }))
+})
 
-  return filteredRoutes
+// 监听登录状态变化
+watch(() => userStore.token, (newToken) => {
+  if (newToken) {
+    loadUserModules()
+  } else {
+    userModules.value = []
+    localStorage.removeItem('userModules')
+  }
+})
+
+// 组件挂载时加载模块
+onMounted(() => {
+  if (userStore.token) {
+    loadUserModules()
+  }
 })
 
 const toggleCollapse = () => {

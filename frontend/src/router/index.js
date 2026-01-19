@@ -65,7 +65,19 @@ const routes = [
         path: 'user-batch-import',
         name: 'UserBatchImport',
         component: () => import('@/views/user/batch-import.vue'),
-        meta: { title: '批量导入学生', icon: 'UserFilled', roles: ['teacher', 'admin'] }
+        meta: { title: '批量导入学生', icon: 'Upload', roles: ['teacher', 'admin'] }
+      },
+      {
+        path: 'admin/users',
+        name: 'AdminUsers',
+        component: () => import('@/views/admin/users.vue'),
+        meta: { title: '用户管理', icon: 'UserFilled', roles: ['admin'] }
+      },
+      {
+        path: 'admin/modules',
+        name: 'AdminModules',
+        component: () => import('@/views/admin/modules.vue'),
+        meta: { title: '模块管理', icon: 'Menu', roles: ['admin'] }
       },
       {
         path: 'classes',

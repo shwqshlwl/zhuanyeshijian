@@ -6,6 +6,7 @@ import com.example.citp.model.dto.*;
 import com.example.citp.model.vo.BatchImportResultVO;
 import com.example.citp.model.vo.LoginResponse;
 import com.example.citp.model.vo.UserInfoVO;
+import com.example.citp.model.vo.AdminStatisticsVO;
 import com.example.citp.service.SysUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -91,5 +92,48 @@ public class SysUserController {
     public Result<UserInfoVO> getStudentByStudentNo(@PathVariable String studentNo) {
         UserInfoVO student = sysUserService.getStudentByStudentNo(studentNo);
         return Result.success(student);
+    }
+
+    // ==================== 管理员专用接口 ====================
+
+    @GetMapping("/admin/users")
+    @Operation(summary = "获取所有用户列表（管理员专用）")
+    public Result<Page<UserInfoVO>> getAllUsers(
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "10") Integer pageSize,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer userType) {
+        Page<UserInfoVO> page = sysUserService.getAllUsers(pageNum, pageSize, keyword, userType);
+        return Result.success(page);
+    }
+
+    @PutMapping("/admin/users/{id}/status")
+    @Operation(summary = "更新用户状态（管理员专用）")
+    public Result<Void> updateUserStatus(
+            @PathVariable Long id,
+            @RequestParam Integer status) {
+        sysUserService.updateUserStatus(id, status);
+        return Result.successMsg("状态更新成功");
+    }
+
+    @PutMapping("/admin/users/{id}/reset-password")
+    @Operation(summary = "重置用户密码（管理员专用）")
+    public Result<Void> resetUserPassword(@PathVariable Long id) {
+        sysUserService.resetUserPassword(id);
+        return Result.successMsg("密码已重置为 123456");
+    }
+
+    @DeleteMapping("/admin/users/{id}")
+    @Operation(summary = "删除用户（管理员专用）")
+    public Result<Void> deleteUser(@PathVariable Long id) {
+        sysUserService.deleteUser(id);
+        return Result.successMsg("用户删除成功");
+    }
+
+    @GetMapping("/admin/statistics")
+    @Operation(summary = "获取管理员统计数据（管理员专用）")
+    public Result<AdminStatisticsVO> getAdminStatistics() {
+        AdminStatisticsVO statistics = sysUserService.getAdminStatistics();
+        return Result.success(statistics);
     }
 }

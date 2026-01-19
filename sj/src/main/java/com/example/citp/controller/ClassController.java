@@ -3,10 +3,12 @@ package com.example.citp.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.citp.common.Result;
 import com.example.citp.model.dto.ClassRequest;
+import com.example.citp.model.entity.Course;
 import com.example.citp.model.vo.ClassDetailVO;
 import com.example.citp.model.vo.ClassVO;
 import com.example.citp.model.vo.UserInfoVO;
 import com.example.citp.service.ClassService;
+import com.example.citp.service.CourseClassService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -26,6 +28,7 @@ import java.util.Map;
 public class ClassController {
 
     private final ClassService classService;
+    private final CourseClassService courseClassService;
 
     @GetMapping
     @Operation(summary = "分页查询班级列表")
@@ -123,5 +126,19 @@ public class ClassController {
     public Result<Void> bindCourseToClass(@PathVariable Long classId, @PathVariable Long courseId) {
         classService.bindCourseToClass(classId, courseId);
         return Result.successMsg("关联成功");
+    }
+
+    @GetMapping("/{id}/courses")
+    @Operation(summary = "获取班级关联的课程列表")
+    public Result<List<Course>> getClassCourses(@PathVariable Long id) {
+        List<Course> courses = courseClassService.getCoursesByClassId(id);
+        return Result.success(courses);
+    }
+
+    @PutMapping("/{id}/courses")
+    @Operation(summary = "设置班级关联的课程")
+    public Result<Void> setClassCourses(@PathVariable Long id, @RequestBody List<Long> courseIds) {
+        courseClassService.setClassCourses(id, courseIds);
+        return Result.successMsg("设置成功");
     }
 }

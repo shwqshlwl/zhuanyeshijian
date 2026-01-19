@@ -1,9 +1,11 @@
 package com.example.citp.model.vo;
 
+import com.example.citp.model.entity.Course;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 班级信息 VO
@@ -27,11 +29,14 @@ public class ClassVO {
     @Schema(description = "专业")
     private String major;
 
-    @Schema(description = "关联课程ID")
+    @Schema(description = "关联课程ID（单个，保持向后兼容）")
     private Long courseId;
 
-    @Schema(description = "课程名称")
+    @Schema(description = "课程名称（单个，保持向后兼容）")
     private String courseName;
+
+    @Schema(description = "关联课程列表（多对多）")
+    private List<Course> courses;
 
     @Schema(description = "教师ID")
     private Long teacherId;

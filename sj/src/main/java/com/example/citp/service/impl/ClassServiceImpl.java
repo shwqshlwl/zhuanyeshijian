@@ -13,6 +13,7 @@ import com.example.citp.model.entity.Course;
 import com.example.citp.model.entity.SysUser;
 import com.example.citp.model.vo.*;
 import com.example.citp.service.ClassService;
+import com.example.citp.service.CourseClassService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
@@ -36,6 +37,7 @@ public class ClassServiceImpl implements ClassService {
     private final CourseMapper courseMapper;
     private final SysUserMapper sysUserMapper;
     private final JdbcTemplate jdbcTemplate;
+    private final CourseClassService courseClassService;
 
     @Override
     public Page<ClassVO> getClassList(Integer pageNum, Integer pageSize, String grade, String major) {
@@ -90,6 +92,17 @@ public class ClassServiceImpl implements ClassService {
         classEntity.setTeacherId(currentUser.getId());
         classEntity.setStudentCount(0);
         classMapper.insert(classEntity);
+
+        // 建立课程关联（优先使用courseIds，如果为空则使用courseId）
+        List<Long> courseIds = request.getCourseIds();
+        if (courseIds == null || courseIds.isEmpty()) {
+            if (request.getCourseId() != null) {
+                courseIds = Collections.singletonList(request.getCourseId());
+            }
+        }
+        if (courseIds != null && !courseIds.isEmpty()) {
+            courseClassService.setClassCourses(classEntity.getId(), courseIds);
+        }
     }
 
     @Override
@@ -132,20 +145,22 @@ public class ClassServiceImpl implements ClassService {
             vo.setStudents(new ArrayList<>());
         }
 
-        // 查询关联课程列表
-        List<CourseVO> courses = new ArrayList<>();
-        if (classEntity.getCourseId() != null) {
-            Course course = courseMapper.selectById(classEntity.getCourseId());
-            if (course != null) {
-                CourseVO courseVO = BeanUtil.copyProperties(course, CourseVO.class);
-                SysUser teacher = sysUserMapper.selectById(course.getTeacherId());
-                if (teacher != null) {
-                    courseVO.setTeacherName(teacher.getRealName());
-                }
-                courses.add(courseVO);
-            }
-        }
-        vo.setCourses(courses);
+        // 查询关联课程列表（多对多关系）
+        List<Course> linkedCourses = courseClassService.getCoursesByClassId(id);
+        List<CourseVO> courseVOs = linkedCourses.stream()
+                .map(course -> {
+                    CourseVO courseVO = BeanUtil.copyProperties(course, CourseVO.class);
+                    // 填充教师姓名
+                    if (course.getTeacherId() != null) {
+                        SysUser teacher = sysUserMapper.selectById(course.getTeacherId());
+                        if (teacher != null) {
+                            courseVO.setTeacherName(teacher.getRealName());
+                        }
+                    }
+                    return courseVO;
+                })
+                .toList();
+        vo.setCourses(courseVOs);
 
         return vo;
     }
@@ -177,6 +192,17 @@ public class ClassServiceImpl implements ClassService {
 
         BeanUtil.copyProperties(request, classEntity, "id", "teacherId", "studentCount");
         classMapper.updateById(classEntity);
+
+        // 更新课程关联（优先使用courseIds，如果为空则使用courseId）
+        List<Long> courseIds = request.getCourseIds();
+        if (courseIds == null || courseIds.isEmpty()) {
+            if (request.getCourseId() != null) {
+                courseIds = Collections.singletonList(request.getCourseId());
+            }
+        }
+        if (courseIds != null) {
+            courseClassService.setClassCourses(id, courseIds);
+        }
     }
 
     @Override
@@ -189,6 +215,9 @@ public class ClassServiceImpl implements ClassService {
 
         // 删除班级学生关联
         jdbcTemplate.update("DELETE FROM student_class WHERE class_id = ?", id);
+
+        // 删除班级课程关联
+        courseClassService.deleteByClassId(id);
 
         classMapper.deleteById(id);
     }
@@ -204,10 +233,10 @@ public class ClassServiceImpl implements ClassService {
 
         // 检查学生是否存在
         SysUser student = sysUserMapper.selectById(studentId);
-        if (student.getUserType() != 1) {
+        if (student == null) {
             throw new BusinessException("学生不存在");
-        } else if (student == null) {
-            throw new BusinessException("学生不存在");
+        } else if (student.getUserType() != 1) {
+            throw new BusinessException("用户不是学生");
         }
 
         // 检查学生是否已在班级中
@@ -341,15 +370,19 @@ public class ClassServiceImpl implements ClassService {
      */
     private ClassVO convertToVO(ClassEntity classEntity) {
         ClassVO vo = BeanUtil.copyProperties(classEntity, ClassVO.class);
-        
-        // 查询课程名称
+
+        // 查询课程名称（保持向后兼容）
         if (classEntity.getCourseId() != null) {
             Course course = courseMapper.selectById(classEntity.getCourseId());
             if (course != null) {
                 vo.setCourseName(course.getCourseName());
             }
         }
-        
+
+        // 查询关联的课程列表（多对多）
+        List<Course> courses = courseClassService.getCoursesByClassId(classEntity.getId());
+        vo.setCourses(courses);
+
         // 查询教师姓名
         if (classEntity.getTeacherId() != null) {
             SysUser teacher = sysUserMapper.selectById(classEntity.getTeacherId());
@@ -357,7 +390,7 @@ public class ClassServiceImpl implements ClassService {
                 vo.setTeacherName(teacher.getRealName());
             }
         }
-        
+
         return vo;
     }
 
