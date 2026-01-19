@@ -73,12 +73,21 @@
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-tag v-if="row.status === 1" type="success">正常</el-tag>
+            <el-tag v-else-if="row.status === 2" type="warning">待审核</el-tag>
             <el-tag v-else type="danger">禁用</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="180" />
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="320" fixed="right">
           <template #default="{ row }">
+            <el-button
+              v-if="row.userType === 2 && row.status === 2"
+              type="primary"
+              size="small"
+              @click="handleAudit(row)"
+            >
+              审核
+            </el-button>
             <el-button
               v-if="row.status === 1 && row.userType !== 3"
               type="warning"
@@ -131,6 +140,52 @@
         />
       </div>
     </el-card>
+
+    <!-- 审核对话框 -->
+    <el-dialog
+      v-model="auditDialog.visible"
+      title="审核教师注册"
+      width="500px"
+    >
+      <div v-if="auditDialog.teacher">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="姓名">
+            {{ auditDialog.teacher.realName }}
+          </el-descriptions-item>
+          <el-descriptions-item label="用户名">
+            {{ auditDialog.teacher.username }}
+          </el-descriptions-item>
+          <el-descriptions-item label="工号">
+            {{ auditDialog.teacher.teacherNo }}
+          </el-descriptions-item>
+          <el-descriptions-item label="邮箱">
+            {{ auditDialog.teacher.email || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="手机号">
+            {{ auditDialog.teacher.phone || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="注册时间">
+            {{ auditDialog.teacher.createTime }}
+          </el-descriptions-item>
+        </el-descriptions>
+
+        <el-form :model="auditDialog" style="margin-top: 20px">
+          <el-form-item label="审核结果" required>
+            <el-radio-group v-model="auditDialog.status">
+              <el-radio :label="1">通过</el-radio>
+              <el-radio :label="0">拒绝</el-radio>
+            </el-radio-group>
+          </el-form-item>
+        </el-form>
+      </div>
+
+      <template #footer>
+        <el-button @click="auditDialog.visible = false">取消</el-button>
+        <el-button type="primary" @click="submitAudit" :loading="auditDialog.loading">
+          确认
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -153,6 +208,14 @@ const pagination = reactive({
   current: 1,
   size: 10,
   total: 0
+})
+
+// 审核对话框
+const auditDialog = reactive({
+  visible: false,
+  teacher: null,
+  status: 1, // 默认通过
+  loading: false
 })
 
 // 加载用户列表
@@ -258,6 +321,34 @@ const handleDelete = async (user) => {
       console.error('删除用户失败:', error)
       // 错误已在拦截器中处理
     }
+  }
+}
+
+// 打开审核对话框
+const handleAudit = (teacher) => {
+  auditDialog.teacher = teacher
+  auditDialog.status = 1 // 默认通过
+  auditDialog.visible = true
+}
+
+// 提交审核
+const submitAudit = async () => {
+  try {
+    auditDialog.loading = true
+
+    const action = auditDialog.status === 1 ? '通过' : '拒绝'
+    await request.put(`/admin/teachers/${auditDialog.teacher.id}/audit`, null, {
+      params: { status: auditDialog.status }
+    })
+
+    ElMessage.success(`审核${action}`)
+    auditDialog.visible = false
+    loadUsers()
+  } catch (error) {
+    console.error('审核失败:', error)
+    // 错误已在拦截器中处理
+  } finally {
+    auditDialog.loading = false
   }
 }
 

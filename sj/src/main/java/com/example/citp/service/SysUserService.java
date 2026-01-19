@@ -80,4 +80,19 @@ public interface SysUserService {
      * 获取管理员统计数据
      */
     com.example.citp.model.vo.AdminStatisticsVO getAdminStatistics();
+
+    /**
+     * 获取学生统计数据
+     */
+    com.example.citp.model.vo.StudentStatisticsVO getStudentStatistics();
+
+    /**
+     * 获取待审核的教师列表
+     */
+    Page<UserInfoVO> getPendingTeachers(Integer pageNum, Integer pageSize);
+
+    /**
+     * 审核教师注册
+     */
+    void auditTeacher(Long userId, Integer status);
 }

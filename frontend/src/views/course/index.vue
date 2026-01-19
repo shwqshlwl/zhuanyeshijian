@@ -41,6 +41,14 @@
       </el-button>
     </div>
 
+    <!-- Tab切换：我的课程 / 全部课程 -->
+    <div v-if="userStore.isTeacher" class="tabs-container">
+      <el-tabs v-model="activeTab" @tab-change="handleTabChange">
+        <el-tab-pane label="我的课程" name="my" />
+        <el-tab-pane label="全部课程" name="all" />
+      </el-tabs>
+    </div>
+
     <!-- 状态统计（表格视图时显示） -->
     <div v-if="viewMode === 'table' && userStore.isTeacher" class="status-stats-bar">
       <el-tag type="info" size="small">未开课: {{ stats.notStarted }}</el-tag>
@@ -57,12 +65,25 @@
               <el-icon :size="48" color="rgba(255,255,255,0.8)"><Reading /></el-icon>
             </div>
             <div class="course-info">
-              <h3 class="course-name">{{ course.courseName }}</h3>
+              <h3 class="course-name">
+                {{ course.courseName }}
+                <el-tag :type="course.courseType === 1 ? 'warning' : 'success'" size="small" style="margin-left: 8px">
+                  {{ course.courseType === 1 ? '选修' : '必修' }}
+                </el-tag>
+              </h3>
               <p class="course-desc">{{ stripHtmlTags(course.description, 60) || '暂无描述' }}</p>
               <div class="course-meta">
                 <span class="meta-item">
                   <el-icon><User /></el-icon>
                   {{ course.teacherName || '未知教师' }}
+                </span>
+                <span class="meta-item" v-if="course.courseType === 0">
+                  <el-icon><OfficeBuilding /></el-icon>
+                  {{ course.classCount || 0 }} 个班级
+                </span>
+                <span class="meta-item" v-if="course.courseType === 1">
+                  <el-icon><User /></el-icon>
+                  {{ course.currentStudents || 0 }}/{{ course.maxStudents === 0 ? '不限' : course.maxStudents }} 人
                 </span>
                 <span class="meta-item">
                   <el-icon><Calendar /></el-icon>
@@ -74,7 +95,7 @@
               <el-button type="primary" text size="small" @click="goToDetail(course.id)">
                 查看详情
               </el-button>
-              <template v-if="userStore.isTeacher">
+              <template v-if="userStore.isTeacher && (course.canEdit || course.isOwner)">
                 <el-button type="primary" text size="small" @click="handleEdit(course)">
                   编辑
                 </el-button>
@@ -82,6 +103,7 @@
                   删除
                 </el-button>
               </template>
+              <el-tag v-if="activeTab === 'all' && course.isOwner" size="small" type="success" style="margin-left: 8px">我的</el-tag>
             </div>
           </div>
         </el-col>
@@ -97,6 +119,25 @@
         <el-table-column prop="courseCode" label="课程编码" width="150" />
         <el-table-column prop="teacherName" label="授课教师" width="120" />
         <el-table-column prop="credit" label="学分" width="80" />
+        <el-table-column label="课程类型" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.courseType === 1 ? 'warning' : 'success'" size="small">
+              {{ row.courseType === 1 ? '选修课' : '必修课' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="统计信息" width="150">
+          <template #default="{ row }">
+            <span v-if="row.courseType === 0">
+              <el-icon><OfficeBuilding /></el-icon>
+              {{ row.classCount || 0 }} 个班级
+            </span>
+            <span v-if="row.courseType === 1">
+              <el-icon><User /></el-icon>
+              {{ row.currentStudents || 0 }}/{{ row.maxStudents === 0 ? '不限' : row.maxStudents }}
+            </span>
+          </template>
+        </el-table-column>
         <el-table-column label="当前状态" width="120">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">
@@ -123,12 +164,12 @@
             {{ row.createTime ? row.createTime.substring(0, 16).replace('T', ' ') : '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="250" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="goToDetail(row.id)">
               查看详情
             </el-button>
-            <template v-if="userStore.isTeacher">
+            <template v-if="userStore.isTeacher && (row.canEdit || row.isOwner)">
               <el-button type="primary" link size="small" @click="handleEdit(row)">
                 编辑
               </el-button>
@@ -136,6 +177,7 @@
                 删除
               </el-button>
             </template>
+            <el-tag v-if="activeTab === 'all' && row.isOwner" size="small" type="success">我的</el-tag>
           </template>
         </el-table-column>
       </el-table>
@@ -167,7 +209,7 @@
         ref="formRef"
         :model="courseForm"
         :rules="formRules"
-        label-width="80px"
+        label-width="120px"
       >
         <el-form-item label="课程名称" prop="courseName">
           <el-input v-model="courseForm.courseName" placeholder="请输入课程名称" />
@@ -178,8 +220,68 @@
         <el-form-item label="学分" prop="credit">
           <el-input-number v-model="courseForm.credit" :min="0" :max="10" :precision="1" />
         </el-form-item>
+
+        <!-- 课程类型选择 -->
+        <el-form-item label="课程类型" prop="courseType">
+          <el-radio-group v-model="courseForm.courseType">
+            <el-radio :label="0">
+              <el-tag type="success" size="small">必修课</el-tag>
+              <span style="margin-left: 8px; color: #909399; font-size: 12px">
+                关联班级后学生自动获得
+              </span>
+            </el-radio>
+            <el-radio :label="1">
+              <el-tag type="warning" size="small">选修课</el-tag>
+              <span style="margin-left: 8px; color: #909399; font-size: 12px">
+                学生在选课中心自主选择
+              </span>
+            </el-radio>
+          </el-radio-group>
+        </el-form-item>
+
+        <!-- 选修课配置（仅选修课时显示） -->
+        <template v-if="courseForm.courseType === 1">
+          <el-divider content-position="left">
+            <el-icon><Setting /></el-icon>选修课配置
+          </el-divider>
+
+          <el-form-item label="最大选课人数" prop="maxStudents">
+            <el-input-number
+              v-model="courseForm.maxStudents"
+              :min="0"
+              :max="9999"
+              placeholder="0表示不限制"
+            />
+            <span style="margin-left: 8px; color: #909399; font-size: 12px">
+              0表示不限制
+            </span>
+          </el-form-item>
+
+          <el-form-item label="选课开始时间" prop="selectionStartTime">
+            <el-date-picker
+              v-model="courseForm.selectionStartTime"
+              type="datetime"
+              placeholder="选择选课开始时间"
+              format="YYYY-MM-DD HH:mm:ss"
+              value-format="YYYY-MM-DDTHH:mm:ss"
+              style="width: 100%"
+            />
+          </el-form-item>
+
+          <el-form-item label="选课结束时间" prop="selectionEndTime">
+            <el-date-picker
+              v-model="courseForm.selectionEndTime"
+              type="datetime"
+              placeholder="选择选课结束时间"
+              format="YYYY-MM-DD HH:mm:ss"
+              value-format="YYYY-MM-DDTHH:mm:ss"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </template>
+
         <el-form-item label="课程描述" prop="description">
-          <WangEditor v-model="courseForm.description" placeholder="请输入课程描述" height="450px" />
+          <WangEditor v-model="courseForm.description" placeholder="请输入课程描述" height="350px" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -211,6 +313,7 @@ const pageSize = ref(8)
 const searchKeyword = ref('')
 const filterStatus = ref(null)
 const viewMode = ref('card')
+const activeTab = ref('my') // 默认显示"我的课程"
 
 const dialogVisible = ref(false)
 const isEdit = ref(false)
@@ -222,12 +325,17 @@ const courseForm = reactive({
   courseName: '',
   courseCode: '',
   credit: 2,
-  description: ''
+  description: '',
+  courseType: 0,              // 课程类型：0-必修课，1-选修课
+  maxStudents: 0,             // 最大选课人数
+  selectionStartTime: null,   // 选课开始时间
+  selectionEndTime: null      // 选课结束时间
 })
 
 const formRules = {
   courseName: [{ required: true, message: '请输入课程名称', trigger: 'blur' }],
-  courseCode: [{ required: true, message: '请输入课程编码', trigger: 'blur' }]
+  courseCode: [{ required: true, message: '请输入课程编码', trigger: 'blur' }],
+  courseType: [{ required: true, message: '请选择课程类型', trigger: 'change' }]
 }
 
 // 统计数据
@@ -266,7 +374,8 @@ const fetchCourseList = async () => {
     const params = {
       pageNum: pageNum.value,
       pageSize: pageSize.value,
-      keyword: searchKeyword.value
+      keyword: searchKeyword.value,
+      type: activeTab.value // 添加type参数
     }
 
     if (filterStatus.value !== null && filterStatus.value !== undefined) {
@@ -323,6 +432,12 @@ const handleSearch = () => {
   fetchCourseList()
 }
 
+// Tab切换处理
+const handleTabChange = (tabName) => {
+  pageNum.value = 1
+  fetchCourseList()
+}
+
 const goToDetail = (id) => {
   router.push(`/courses/${id}`)
 }
@@ -334,7 +449,11 @@ const handleAdd = () => {
     courseName: '',
     courseCode: '',
     credit: 2,
-    description: ''
+    description: '',
+    courseType: 0,              // 默认必修课
+    maxStudents: 0,
+    selectionStartTime: null,
+    selectionEndTime: null
   })
   dialogVisible.value = true
 }
@@ -346,7 +465,11 @@ const handleEdit = (course) => {
     courseName: course.courseName,
     courseCode: course.courseCode,
     credit: course.credit,
-    description: course.description
+    description: course.description,
+    courseType: course.courseType ?? 0,
+    maxStudents: course.maxStudents ?? 0,
+    selectionStartTime: course.selectionStartTime,
+    selectionEndTime: course.selectionEndTime
   })
   dialogVisible.value = true
 }
@@ -408,6 +531,14 @@ onMounted(() => {
     border-radius: 12px;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
     align-items: center;
+  }
+
+  .tabs-container {
+    margin-bottom: 20px;
+    padding: 0 20px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
   }
 
   .status-stats-bar {

@@ -33,13 +33,21 @@ public class CourseServiceImpl implements CourseService {
     private final ClassMapper classMapper;
     private final HomeworkMapper homeworkMapper;
     private final ExamMapper examMapper;
+    private final CourseClassMapper courseClassMapper;
+    private final StudentCourseMapper studentCourseMapper;
     private final JdbcTemplate jdbcTemplate;
 
     @Override
-    public Page<CourseVO> getCourseList(Integer pageNum, Integer pageSize, String keyword, Integer status) {
+    public Page<CourseVO> getCourseList(Integer pageNum, Integer pageSize, String keyword, Integer status, String type, Long currentUserId, Integer userType) {
         Page<Course> page = new Page<>(pageNum, pageSize);
 
         LambdaQueryWrapper<Course> wrapper = new LambdaQueryWrapper<>();
+
+        // 如果是"我的课程"，只查询当前用户创建的课程
+        if ("my".equals(type) && currentUserId != null) {
+            wrapper.eq(Course::getTeacherId, currentUserId);
+        }
+
         if (StringUtils.hasText(keyword)) {
             wrapper.like(Course::getCourseName, keyword)
                     .or()
@@ -52,7 +60,7 @@ public class CourseServiceImpl implements CourseService {
 
         Page<Course> coursePage = courseMapper.selectPage(page, wrapper);
 
-        // 转换为 VO
+        // 转换为 VO并设置权限标识
         Page<CourseVO> voPage = new Page<>(coursePage.getCurrent(), coursePage.getSize(), coursePage.getTotal());
         voPage.setRecords(coursePage.getRecords().stream().map(course -> {
             CourseVO vo = BeanUtil.copyProperties(course, CourseVO.class);
@@ -61,6 +69,21 @@ public class CourseServiceImpl implements CourseService {
             if (teacher != null) {
                 vo.setTeacherName(teacher.getRealName());
             }
+
+            // 设置权限标识
+            boolean isOwner = currentUserId != null && course.getTeacherId().equals(currentUserId);
+            boolean isAdmin = userType != null && userType == 3;
+            vo.setIsOwner(isOwner);
+            vo.setCanEdit(isOwner || isAdmin);
+            vo.setCanDelete(isOwner || isAdmin);
+
+            // 查询关联班级数量（仅必修课）
+            if (course.getCourseType() != null && course.getCourseType() == 0) {
+                Long classCount = courseClassMapper.selectCount(new LambdaQueryWrapper<CourseClass>()
+                        .eq(CourseClass::getCourseId, course.getId()));
+                vo.setClassCount(classCount.intValue());
+            }
+
             return vo;
         }).toList());
 
@@ -239,37 +262,108 @@ public class CourseServiceImpl implements CourseService {
     @Override
     public List<CourseVO> getStudentCourses() {
         SysUser currentUser = getCurrentUser();
-        
-        // 查询学生所在的班级
+
+        // 1. 查询学生所在的班级ID列表
         List<Long> classIds = jdbcTemplate.queryForList(
                 "SELECT class_id FROM student_class WHERE student_id = ?",
                 Long.class, currentUser.getId());
 
-        if (classIds.isEmpty()) {
-            return new ArrayList<>();
-        }
+        List<CourseVO> allCourses = new ArrayList<>();
 
-        // 查询班级关联的课程
-        List<ClassEntity> classes = classMapper.selectBatchIds(classIds);
-        List<Long> courseIds = classes.stream()
-                .filter(c -> c.getCourseId() != null)
-                .map(ClassEntity::getCourseId)
-                .distinct()
-                .toList();
+        // 2. 通过 course_class 表查询这些班级关联的所有必修课
+        if (!classIds.isEmpty()) {
+            List<Course> requiredCourses = courseClassMapper.selectCoursesByClassIds(classIds);
 
-        if (courseIds.isEmpty()) {
-            return new ArrayList<>();
-        }
-
-        List<Course> courses = courseMapper.selectBatchIds(courseIds);
-        return courses.stream().map(course -> {
-            CourseVO vo = BeanUtil.copyProperties(course, CourseVO.class);
-            SysUser teacher = sysUserMapper.selectById(course.getTeacherId());
-            if (teacher != null) {
-                vo.setTeacherName(teacher.getRealName());
+            for (Course course : requiredCourses) {
+                CourseVO vo = BeanUtil.copyProperties(course, CourseVO.class);
+                SysUser teacher = sysUserMapper.selectById(course.getTeacherId());
+                if (teacher != null) {
+                    vo.setTeacherName(teacher.getRealName());
+                }
+                // 设置课程类型为必修课
+                if (vo.getCourseType() == null) {
+                    vo.setCourseType(0);
+                }
+                allCourses.add(vo);
             }
+        }
+
+        // 3. 从 student_course 表查询学生选择的选修课
+        List<StudentCourse> studentCourses = studentCourseMapper.selectList(new LambdaQueryWrapper<StudentCourse>()
+                .eq(StudentCourse::getStudentId, currentUser.getId())
+                .eq(StudentCourse::getStatus, 1)
+                .eq(StudentCourse::getCourseType, 1)); // 只查询选修课
+
+        for (StudentCourse sc : studentCourses) {
+            Course course = courseMapper.selectById(sc.getCourseId());
+            if (course != null) {
+                CourseVO vo = BeanUtil.copyProperties(course, CourseVO.class);
+                SysUser teacher = sysUserMapper.selectById(course.getTeacherId());
+                if (teacher != null) {
+                    vo.setTeacherName(teacher.getRealName());
+                }
+                allCourses.add(vo);
+            }
+        }
+
+        return allCourses;
+    }
+
+    @Override
+    public List<CourseStudentVO> getCourseStudents(Long courseId) {
+        // 查询该课程的所有选课记录
+        List<StudentCourse> studentCourses = studentCourseMapper.selectList(new LambdaQueryWrapper<StudentCourse>()
+                .eq(StudentCourse::getCourseId, courseId)
+                .eq(StudentCourse::getStatus, 1)
+                .orderByDesc(StudentCourse::getSelectionTime));
+
+        return studentCourses.stream().map(sc -> {
+            CourseStudentVO vo = new CourseStudentVO();
+            vo.setStudentId(sc.getStudentId());
+            vo.setCourseType(sc.getCourseType());
+            vo.setSelectionTime(sc.getSelectionTime());
+            vo.setStatus(sc.getStatus());
+
+            // 查询学生信息
+            SysUser student = sysUserMapper.selectById(sc.getStudentId());
+            if (student != null) {
+                vo.setStudentNumber(student.getUsername());
+                vo.setStudentName(student.getRealName());
+            }
+
             return vo;
         }).toList();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void removeStudent(Long courseId, Long studentId) {
+        // 查询课程
+        Course course = courseMapper.selectById(courseId);
+        if (course == null) {
+            throw new BusinessException("课程不存在");
+        }
+
+        // 查询选课记录
+        StudentCourse studentCourse = studentCourseMapper.selectOne(new LambdaQueryWrapper<StudentCourse>()
+                .eq(StudentCourse::getCourseId, courseId)
+                .eq(StudentCourse::getStudentId, studentId)
+                .eq(StudentCourse::getStatus, 1));
+
+        if (studentCourse == null) {
+            throw new BusinessException("该学生未选择此课程");
+        }
+
+        // 更新选课记录状态为已退课
+        studentCourse.setStatus(0);
+        studentCourseMapper.updateById(studentCourse);
+
+        // 如果是选修课，更新课程的当前选课人数
+        if (course.getCourseType() == 1) {
+            Integer currentCount = studentCourseMapper.countByCourseId(courseId);
+            course.setCurrentStudents(currentCount);
+            courseMapper.updateById(course);
+        }
     }
 
     /**

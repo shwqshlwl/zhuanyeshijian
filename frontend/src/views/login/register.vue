@@ -173,7 +173,10 @@ const handleRegister = async () => {
           email: registerForm.email,
           phone: registerForm.phone
         })
-        ElMessage.success('注册成功，请登录')
+        ElMessage.success({
+          message: '注册成功！请等待管理员审核，审核通过后即可登录',
+          duration: 5000
+        })
         router.push('/login')
       } catch (error) {
         console.error('注册失败:', error)

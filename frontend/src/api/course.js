@@ -51,3 +51,19 @@ export function deleteCourse(id) {
     method: 'delete'
   })
 }
+
+// 获取课程的选课学生列表
+export function getCourseStudents(id) {
+  return request({
+    url: `/courses/${id}/students`,
+    method: 'get'
+  })
+}
+
+// 移除课程的选课学生
+export function removeStudentFromCourse(courseId, studentId) {
+  return request({
+    url: `/courses/${courseId}/students/${studentId}`,
+    method: 'delete'
+  })
+}

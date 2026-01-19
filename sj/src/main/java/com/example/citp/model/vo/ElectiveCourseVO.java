@@ -7,11 +7,11 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * 课程信息 VO
+ * 选修课信息 VO（用于选课中心）
  */
 @Data
-@Schema(description = "课程信息")
-public class CourseVO {
+@Schema(description = "选修课信息")
+public class ElectiveCourseVO {
 
     @Schema(description = "课程ID")
     private Long id;
@@ -31,12 +31,6 @@ public class CourseVO {
     @Schema(description = "课程描述")
     private String description;
 
-    @Schema(description = "课程封面")
-    private String coverImage;
-
-    @Schema(description = "课程大纲")
-    private String syllabus;
-
     @Schema(description = "学分")
     private BigDecimal credit;
 
@@ -45,12 +39,6 @@ public class CourseVO {
 
     @Schema(description = "学期")
     private String semester;
-
-    @Schema(description = "状态：0-未开课，1-进行中，2-已结束")
-    private Integer status;
-
-    @Schema(description = "课程类型：0-必修课，1-选修课")
-    private Integer courseType;
 
     @Schema(description = "最大选课人数（0表示不限制）")
     private Integer maxStudents;
@@ -64,21 +52,15 @@ public class CourseVO {
     @Schema(description = "选课结束时间")
     private LocalDateTime selectionEndTime;
 
-    @Schema(description = "创建时间")
-    private LocalDateTime createTime;
+    @Schema(description = "是否已选")
+    private Boolean isSelected;
 
-    @Schema(description = "更新时间")
-    private LocalDateTime updateTime;
+    @Schema(description = "是否可选（在选课时间内且未满员）")
+    private Boolean canSelect;
 
-    @Schema(description = "是否是当前用户创建的课程")
-    private Boolean isOwner;
+    @Schema(description = "是否可退（在选课时间内且已选）")
+    private Boolean canDrop;
 
-    @Schema(description = "是否可以编辑")
-    private Boolean canEdit;
-
-    @Schema(description = "是否可以删除")
-    private Boolean canDelete;
-
-    @Schema(description = "关联班级数量（仅必修课）")
-    private Integer classCount;
+    @Schema(description = "不可选原因")
+    private String unavailableReason;
 }

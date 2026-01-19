@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 /**
  * 课程请求 DTO
@@ -42,4 +43,16 @@ public class CourseRequest {
 
     @Schema(description = "状态：0-未开课，1-进行中，2-已结束")
     private Integer status;
+
+    @Schema(description = "课程类型：0-必修课，1-选修课")
+    private Integer courseType;
+
+    @Schema(description = "最大选课人数（0表示不限制）")
+    private Integer maxStudents;
+
+    @Schema(description = "选课开始时间")
+    private LocalDateTime selectionStartTime;
+
+    @Schema(description = "选课结束时间")
+    private LocalDateTime selectionEndTime;
 }

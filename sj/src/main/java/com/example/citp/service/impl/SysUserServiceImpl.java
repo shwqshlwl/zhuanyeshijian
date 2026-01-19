@@ -9,6 +9,7 @@ import com.example.citp.mapper.ClassMapper;
 import com.example.citp.mapper.SysRoleMapper;
 import com.example.citp.mapper.SysUserMapper;
 import com.example.citp.mapper.CourseMapper;
+import com.example.citp.mapper.CourseClassMapper;
 import com.example.citp.mapper.HomeworkMapper;
 import com.example.citp.mapper.ExamMapper;
 import com.example.citp.model.dto.*;
@@ -43,6 +44,7 @@ public class SysUserServiceImpl implements SysUserService {
     private final SysRoleMapper sysRoleMapper;
     private final ClassMapper classMapper;
     private final CourseMapper courseMapper;
+    private final CourseClassMapper courseClassMapper;
     private final HomeworkMapper homeworkMapper;
     private final ExamMapper examMapper;
     private final PasswordEncoder passwordEncoder;
@@ -67,6 +69,11 @@ public class SysUserServiceImpl implements SysUserService {
         // 检查用户状态
         if (user.getStatus() == 0) {
             throw new BusinessException("账号已被禁用");
+        }
+
+        // 检查教师审核状态
+        if (user.getUserType() == 2 && user.getStatus() == 2) {
+            throw new BusinessException("您的账号正在审核中，请等待管理员审核通过后再登录");
         }
 
         // 生成 Token
@@ -104,7 +111,7 @@ public class SysUserServiceImpl implements SysUserService {
         user.setPhone(request.getPhone());
         user.setTeacherNo(request.getTeacherNo());
         user.setUserType(2); // 教师
-        user.setStatus(1);
+        user.setStatus(2); // 待审核
 
         sysUserMapper.insert(user);
 
@@ -398,6 +405,87 @@ public class SysUserServiceImpl implements SysUserService {
         vo.setTotalExams(totalExams);
 
         return vo;
+    }
+
+    @Override
+    public com.example.citp.model.vo.StudentStatisticsVO getStudentStatistics() {
+        SysUser currentUser = getCurrentUser();
+        Long studentId = currentUser.getId();
+
+        // 我的班级数量
+        Integer classCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM student_class WHERE student_id = ?",
+                Integer.class, studentId);
+
+        // 我的课程数量（通过班级关联）
+        int courseCount = courseClassMapper.countCoursesByStudentId(studentId);
+
+        // 我的作业数量
+        Integer homeworkCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(DISTINCT h.id) FROM homework h " +
+                "INNER JOIN course_class cc ON h.course_id = cc.course_id " +
+                "INNER JOIN student_class sc ON cc.class_id = sc.class_id " +
+                "WHERE sc.student_id = ? AND h.deleted = 0",
+                Integer.class, studentId);
+
+        // 我的考试数量
+        Integer examCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(DISTINCT e.id) FROM exam e " +
+                "INNER JOIN course_class cc ON e.course_id = cc.course_id " +
+                "INNER JOIN student_class sc ON cc.class_id = sc.class_id " +
+                "WHERE sc.student_id = ? AND e.deleted = 0",
+                Integer.class, studentId);
+
+        return new com.example.citp.model.vo.StudentStatisticsVO(
+                classCount != null ? classCount : 0,
+                courseCount,
+                homeworkCount != null ? homeworkCount : 0,
+                examCount != null ? examCount : 0
+        );
+    }
+
+    @Override
+    public Page<UserInfoVO> getPendingTeachers(Integer pageNum, Integer pageSize) {
+        Page<SysUser> page = new Page<>(pageNum, pageSize);
+
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysUser::getUserType, 2) // 教师
+                .eq(SysUser::getStatus, 2) // 待审核
+                .orderByDesc(SysUser::getCreateTime);
+
+        Page<SysUser> userPage = sysUserMapper.selectPage(page, wrapper);
+
+        Page<UserInfoVO> voPage = new Page<>(userPage.getCurrent(), userPage.getSize(), userPage.getTotal());
+        voPage.setRecords(userPage.getRecords().stream()
+                .map(u -> BeanUtil.copyProperties(u, UserInfoVO.class))
+                .toList());
+
+        return voPage;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void auditTeacher(Long userId, Integer status) {
+        SysUser user = sysUserMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        if (user.getUserType() != 2) {
+            throw new BusinessException("该用户不是教师");
+        }
+
+        if (user.getStatus() != 2) {
+            throw new BusinessException("该教师不在待审核状态");
+        }
+
+        // status: 1-审核通过，0-审核拒绝
+        if (status != 0 && status != 1) {
+            throw new BusinessException("审核状态无效");
+        }
+
+        user.setStatus(status);
+        sysUserMapper.updateById(user);
     }
 
     /**

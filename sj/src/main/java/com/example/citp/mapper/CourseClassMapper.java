@@ -24,6 +24,29 @@ public interface CourseClassMapper extends BaseMapper<CourseClass> {
     List<Course> selectCoursesByClassId(@Param("classId") Long classId);
 
     /**
+     * 根据多个班级ID查询关联的所有课程（去重）
+     */
+    @Select("<script>" +
+            "SELECT DISTINCT c.* FROM course c " +
+            "INNER JOIN course_class cc ON c.id = cc.course_id " +
+            "WHERE cc.class_id IN " +
+            "<foreach collection='classIds' item='classId' open='(' separator=',' close=')'>" +
+            "#{classId}" +
+            "</foreach>" +
+            " AND c.deleted = 0 " +
+            "ORDER BY c.create_time DESC" +
+            "</script>")
+    List<Course> selectCoursesByClassIds(@Param("classIds") List<Long> classIds);
+
+    /**
+     * 统计学生可见的课程数量（通过班级关联）
+     */
+    @Select("SELECT COUNT(DISTINCT cc.course_id) FROM course_class cc " +
+            "INNER JOIN student_class sc ON cc.class_id = sc.class_id " +
+            "WHERE sc.student_id = #{studentId}")
+    int countCoursesByStudentId(@Param("studentId") Long studentId);
+
+    /**
      * 根据课程ID查询关联的班级列表
      */
     @Select("SELECT cl.* FROM class cl " +

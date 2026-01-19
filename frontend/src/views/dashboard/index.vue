@@ -100,41 +100,18 @@
             <h3 class="panel-title">快捷操作</h3>
           </div>
           <div class="quick-actions">
-            <div class="action-item" @click="$router.push('/courses')">
-              <div class="action-icon" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8)">
-                <el-icon :size="24"><Reading /></el-icon>
+            <div
+              v-for="item in shortcuts"
+              :key="item.path"
+              class="action-item"
+              @click="$router.push(item.path)"
+            >
+              <div class="action-icon" :style="{ background: item.gradient }">
+                <el-icon :size="24">
+                  <component :is="item.icon" />
+                </el-icon>
               </div>
-              <span class="action-text">课程管理</span>
-            </div>
-            <div class="action-item" @click="$router.push('/classes')">
-              <div class="action-icon" style="background: linear-gradient(135deg, #10b981, #059669)">
-                <el-icon :size="24"><School /></el-icon>
-              </div>
-              <span class="action-text">班级管理</span>
-            </div>
-            <div class="action-item" @click="$router.push('/homeworks')">
-              <div class="action-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706)">
-                <el-icon :size="24"><EditPen /></el-icon>
-              </div>
-              <span class="action-text">布置作业</span>
-            </div>
-            <div class="action-item" @click="$router.push('/exams')">
-              <div class="action-icon" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed)">
-                <el-icon :size="24"><Document /></el-icon>
-              </div>
-              <span class="action-text">创建考试</span>
-            </div>
-            <div class="action-item" @click="$router.push('/questions')">
-              <div class="action-icon" style="background: linear-gradient(135deg, #ec4899, #db2777)">
-                <el-icon :size="24"><Collection /></el-icon>
-              </div>
-              <span class="action-text">题库管理</span>
-            </div>
-            <div class="action-item" @click="$router.push('/experiments')">
-              <div class="action-icon" style="background: linear-gradient(135deg, #06b6d4, #0891b2)">
-                <el-icon :size="24"><Monitor /></el-icon>
-              </div>
-              <span class="action-text">实验管理</span>
+              <span class="action-text">{{ item.name }}</span>
             </div>
           </div>
         </div>
@@ -162,15 +139,163 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { getCourseList } from '@/api/course'
 import { getClassList } from '@/api/class'
 import { getHomeworkList } from '@/api/homework'
 import { getExamList } from '@/api/exam'
 import request from '@/utils/request'
+import {
+  Reading,
+  School,
+  EditPen,
+  Document,
+  Collection,
+  Monitor,
+  Bell,
+  User,
+  ChatDotRound,
+  UserFilled,
+  Menu,
+  DataAnalysis,
+  Setting
+} from '@element-plus/icons-vue'
 
 const userStore = useUserStore()
+
+// 学生快捷操作配置
+const studentShortcuts = [
+  {
+    name: '我的课程',
+    icon: Reading,
+    path: '/my-courses',
+    gradient: 'linear-gradient(135deg, #3b82f6, #1d4ed8)'
+  },
+  {
+    name: '我的作业',
+    icon: EditPen,
+    path: '/my-homeworks',
+    gradient: 'linear-gradient(135deg, #f59e0b, #d97706)'
+  },
+  {
+    name: '我的考试',
+    icon: Document,
+    path: '/my-exams',
+    gradient: 'linear-gradient(135deg, #ef4444, #dc2626)'
+  },
+  {
+    name: '我的实验',
+    icon: Monitor,
+    path: '/my-experiments',
+    gradient: 'linear-gradient(135deg, #8b5cf6, #7c3aed)'
+  },
+  {
+    name: 'AI助教',
+    icon: ChatDotRound,
+    path: '/ai-chat',
+    gradient: 'linear-gradient(135deg, #10b981, #059669)'
+  },
+  {
+    name: '个人中心',
+    icon: User,
+    path: '/profile',
+    gradient: 'linear-gradient(135deg, #6b7280, #4b5563)'
+  }
+]
+
+// 教师快捷操作配置
+const teacherShortcuts = [
+  {
+    name: '课程管理',
+    icon: Reading,
+    path: '/courses',
+    gradient: 'linear-gradient(135deg, #3b82f6, #1d4ed8)'
+  },
+  {
+    name: '班级管理',
+    icon: School,
+    path: '/classes',
+    gradient: 'linear-gradient(135deg, #10b981, #059669)'
+  },
+  {
+    name: '布置作业',
+    icon: EditPen,
+    path: '/homeworks',
+    gradient: 'linear-gradient(135deg, #f59e0b, #d97706)'
+  },
+  {
+    name: '创建考试',
+    icon: Document,
+    path: '/exams',
+    gradient: 'linear-gradient(135deg, #ef4444, #dc2626)'
+  },
+  {
+    name: '题库管理',
+    icon: Collection,
+    path: '/questions',
+    gradient: 'linear-gradient(135deg, #ec4899, #db2777)'
+  },
+  {
+    name: '实验管理',
+    icon: Monitor,
+    path: '/experiments',
+    gradient: 'linear-gradient(135deg, #06b6d4, #0891b2)'
+  }
+]
+
+// 管理员快捷操作配置
+const adminShortcuts = [
+  {
+    name: '用户管理',
+    icon: UserFilled,
+    path: '/admin/users',
+    gradient: 'linear-gradient(135deg, #ef4444, #dc2626)'
+  },
+  {
+    name: '模块管理',
+    icon: Menu,
+    path: '/admin/modules',
+    gradient: 'linear-gradient(135deg, #8b5cf6, #7c3aed)'
+  },
+  {
+    name: '课程管理',
+    icon: Reading,
+    path: '/courses',
+    gradient: 'linear-gradient(135deg, #3b82f6, #1d4ed8)'
+  },
+  {
+    name: '班级管理',
+    icon: School,
+    path: '/classes',
+    gradient: 'linear-gradient(135deg, #10b981, #059669)'
+  },
+  {
+    name: '数据统计',
+    icon: DataAnalysis,
+    path: '/dashboard',
+    gradient: 'linear-gradient(135deg, #f59e0b, #d97706)'
+  },
+  {
+    name: '系统设置',
+    icon: Setting,
+    path: '/settings',
+    gradient: 'linear-gradient(135deg, #6b7280, #4b5563)'
+  }
+]
+
+// 根据用户角色动态选择快捷操作
+const shortcuts = computed(() => {
+  if (userStore.isAdmin) {
+    return adminShortcuts
+  } else if (userStore.userType === 1) {
+    // 学生用户
+    return studentShortcuts
+  } else {
+    // 教师用户
+    return teacherShortcuts
+  }
+})
 
 const stats = ref({
   // 教师统计
@@ -250,10 +375,32 @@ const fetchTeacherStats = async () => {
   }
 }
 
+// 获取学生统计数据
+const fetchStudentStats = async () => {
+  try {
+    console.log('获取学生统计数据...')
+    const data = await request.get('/student/statistics')
+    stats.value = {
+      ...stats.value,
+      courseCount: data.data.courseCount,
+      classCount: data.data.classCount,
+      homeworkCount: data.data.homeworkCount,
+      examCount: data.data.examCount
+    }
+    console.log('学生统计数据:', stats.value)
+  } catch (error) {
+    console.error('获取学生统计数据失败:', error)
+  }
+}
+
 const fetchStats = async () => {
   if (userStore.isAdmin) {
     await fetchAdminStats()
+  } else if (userStore.userType === 1) {
+    // 学生用户
+    await fetchStudentStats()
   } else {
+    // 教师用户
     await fetchTeacherStats()
   }
 }

@@ -25,6 +25,19 @@
           <el-descriptions-item label="学分">{{ course.credit }}</el-descriptions-item>
           <el-descriptions-item label="总学时">{{ course.totalHours || '-' }}</el-descriptions-item>
           <el-descriptions-item label="学期">{{ course.semester || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="课程类型">
+            <el-tag :type="course.courseType === 1 ? 'warning' : 'success'" size="small">
+              {{ course.courseType === 1 ? '选修课' : '必修课' }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="选课人数" v-if="course.courseType === 1">
+            {{ course.currentStudents || 0 }} / {{ course.maxStudents === 0 ? '不限' : course.maxStudents }}
+          </el-descriptions-item>
+          <el-descriptions-item label="选课时间" v-if="course.courseType === 1" :span="course.courseType === 1 ? 1 : 0">
+            <el-tag :type="selectionTimeStatus.type" size="small">
+              {{ selectionTimeStatus.text }}
+            </el-tag>
+          </el-descriptions-item>
           <el-descriptions-item label="课程描述" :span="3">
             <div v-if="course.description" v-html="course.description" class="course-description"></div>
             <span v-else>暂无描述</span>
@@ -46,8 +59,8 @@
         <el-empty v-else description="暂无课程大纲" />
       </el-card>
 
-      <!-- 关联班级 -->
-      <el-card class="class-card">
+      <!-- 关联班级（仅必修课） -->
+      <el-card class="class-card" v-if="course.courseType === 0">
         <template #header>
           <div class="card-header">
             <span>关联班级</span>
@@ -64,6 +77,52 @@
           <el-table-column prop="studentCount" label="学生人数" width="100" />
         </el-table>
         <el-empty v-if="relatedClasses.length === 0" description="暂无关联班级" />
+      </el-card>
+
+      <!-- 选课学生（仅选修课） -->
+      <el-card class="students-card" v-if="course.courseType === 1">
+        <template #header>
+          <div class="card-header">
+            <span>选课学生</span>
+            <div>
+              <el-tag type="info" size="small">已选人数: {{ courseStudents.length }}</el-tag>
+              <el-tag type="warning" size="small" style="margin-left: 8px">
+                容量: {{ course.maxStudents === 0 ? '不限' : course.maxStudents }}
+              </el-tag>
+            </div>
+          </div>
+        </template>
+        <el-table :data="courseStudents" stripe v-loading="studentsLoading">
+          <el-table-column type="index" label="序号" width="60" />
+          <el-table-column prop="studentNumber" label="学号" width="150" />
+          <el-table-column prop="studentName" label="姓名" width="120" />
+          <el-table-column prop="selectionTime" label="选课时间" width="180">
+            <template #default="{ row }">
+              {{ row.selectionTime ? row.selectionTime.replace('T', ' ').substring(0, 19) : '-' }}
+            </template>
+          </el-table-column>
+          <el-table-column label="状态" width="100">
+            <template #default="{ row }">
+              <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">
+                {{ row.status === 1 ? '正常' : '已退课' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="120" v-if="userStore.isTeacher">
+            <template #default="{ row }">
+              <el-button
+                type="danger"
+                link
+                size="small"
+                @click="handleRemoveStudent(row)"
+                :disabled="row.status === 0"
+              >
+                移除
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-empty v-if="!studentsLoading && courseStudents.length === 0" description="暂无选课学生" />
       </el-card>
 
       <!-- 历史作业 -->
@@ -192,11 +251,11 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { getCourseById, updateCourse } from '@/api/course'
+import { getCourseById, updateCourse, getCourseStudents, removeStudentFromCourse } from '@/api/course'
 import { getHomeworkList } from '@/api/homework'
 import { getExamList } from '@/api/exam'
 import request from '@/utils/request'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const route = useRoute()
 const userStore = useUserStore()
@@ -207,6 +266,8 @@ const course = ref({})
 const relatedClasses = ref([])
 const homeworkList = ref([])
 const examList = ref([])
+const courseStudents = ref([])
+const studentsLoading = ref(false)
 
 // 状态计算
 const statusType = computed(() => {
@@ -216,6 +277,24 @@ const statusType = computed(() => {
 const statusText = computed(() => {
   const s = course.value.status
   return s === 0 ? '未开课' : s === 1 ? '进行中' : '已结束'
+})
+
+// 选课时间状态
+const selectionTimeStatus = computed(() => {
+  if (!course.value.selectionStartTime || !course.value.selectionEndTime) {
+    return { type: 'info', text: '未设置' }
+  }
+  const now = new Date()
+  const startTime = new Date(course.value.selectionStartTime)
+  const endTime = new Date(course.value.selectionEndTime)
+
+  if (now < startTime) {
+    return { type: 'info', text: '未开始' }
+  } else if (now > endTime) {
+    return { type: 'danger', text: '已结束' }
+  } else {
+    return { type: 'success', text: '进行中' }
+  }
 })
 
 // 编辑课程
@@ -242,6 +321,11 @@ const fetchCourseDetail = async () => {
     const res = await getCourseById(courseId)
     course.value = res.data || {}
     syllabusContent.value = course.value.syllabus || ''
+
+    // 如果是选修课，获取选课学生列表
+    if (course.value.courseType === 1) {
+      fetchCourseStudents()
+    }
   } finally {
     loading.value = false
   }
@@ -275,6 +359,45 @@ const fetchExams = async () => {
   } catch (e) {
     console.error(e)
   }
+}
+
+// 获取选课学生列表（仅选修课）
+const fetchCourseStudents = async () => {
+  if (course.value.courseType !== 1) return
+
+  studentsLoading.value = true
+  try {
+    const res = await getCourseStudents(courseId)
+    courseStudents.value = res.data || []
+  } catch (e) {
+    console.error('获取选课学生失败:', e)
+  } finally {
+    studentsLoading.value = false
+  }
+}
+
+// 移除学生
+const handleRemoveStudent = (student) => {
+  ElMessageBox.confirm(
+    `确定要移除学生"${student.studentName}"（${student.studentNumber}）吗？`,
+    '提示',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    }
+  ).then(async () => {
+    try {
+      await removeStudentFromCourse(courseId, student.studentId)
+      ElMessage.success('移除成功')
+      fetchCourseStudents()
+      fetchCourseDetail() // 刷新课程信息以更新选课人数
+    } catch (error) {
+      console.error('移除学生失败:', error)
+    }
+  }).catch(() => {
+    // 用户取消操作
+  })
 }
 
 // 编辑课程

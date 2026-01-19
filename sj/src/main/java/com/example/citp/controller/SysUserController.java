@@ -136,4 +136,30 @@ public class SysUserController {
         AdminStatisticsVO statistics = sysUserService.getAdminStatistics();
         return Result.success(statistics);
     }
+
+    @GetMapping("/student/statistics")
+    @Operation(summary = "获取学生统计数据（学生专用）")
+    public Result<com.example.citp.model.vo.StudentStatisticsVO> getStudentStatistics() {
+        com.example.citp.model.vo.StudentStatisticsVO statistics = sysUserService.getStudentStatistics();
+        return Result.success(statistics);
+    }
+
+    @GetMapping("/admin/teachers/pending")
+    @Operation(summary = "获取待审核的教师列表（管理员专用）")
+    public Result<Page<UserInfoVO>> getPendingTeachers(
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "10") Integer pageSize) {
+        Page<UserInfoVO> page = sysUserService.getPendingTeachers(pageNum, pageSize);
+        return Result.success(page);
+    }
+
+    @PutMapping("/admin/teachers/{id}/audit")
+    @Operation(summary = "审核教师注册（管理员专用）")
+    public Result<Void> auditTeacher(
+            @PathVariable Long id,
+            @RequestParam Integer status) {
+        sysUserService.auditTeacher(id, status);
+        String message = status == 1 ? "审核通过" : "审核拒绝";
+        return Result.successMsg(message);
+    }
 }

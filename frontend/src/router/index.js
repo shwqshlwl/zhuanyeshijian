@@ -44,10 +44,28 @@ const routes = [
         meta: { title: '课程管理', icon: 'Reading', roles: ['teacher', 'admin'] }
       },
       {
+        path: 'course-templates',
+        name: 'CourseTemplates',
+        component: () => import('@/views/course/course-templates.vue'),
+        meta: { title: '学期开课管理', icon: 'Reading', roles: ['teacher', 'admin'] }
+      },
+      {
+        path: 'course-offerings/:id',
+        name: 'CourseOfferingDetail',
+        component: () => import('@/views/course/offering-detail.vue'),
+        meta: { title: '开课详情', hidden: true, roles: ['teacher', 'admin'] }
+      },
+      {
         path: 'my-courses',
         name: 'MyCourses',
         component: () => import('@/views/course/my-courses.vue'),
         meta: { title: '我的课程', icon: 'Reading', roles: ['student'] }
+      },
+      {
+        path: 'elective',
+        name: 'Elective',
+        component: () => import('@/views/elective/index.vue'),
+        meta: { title: '选课中心', icon: 'ShoppingCart', roles: ['student'] }
       },
       {
         path: 'courses/:id',
@@ -78,6 +96,12 @@ const routes = [
         name: 'AdminModules',
         component: () => import('@/views/admin/modules.vue'),
         meta: { title: '模块管理', icon: 'Menu', roles: ['admin'] }
+      },
+      {
+        path: 'admin/semesters',
+        name: 'AdminSemesters',
+        component: () => import('@/views/admin/semester.vue'),
+        meta: { title: '学期管理', icon: 'Calendar', roles: ['admin'] }
       },
       {
         path: 'classes',

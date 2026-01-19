@@ -40,6 +40,31 @@ public class Course implements Serializable {
      */
     private Integer status;
 
+    /**
+     * 课程类型：0-必修课，1-选修课
+     */
+    private Integer courseType;
+
+    /**
+     * 最大选课人数（0表示不限制）
+     */
+    private Integer maxStudents;
+
+    /**
+     * 当前选课人数
+     */
+    private Integer currentStudents;
+
+    /**
+     * 选课开始时间
+     */
+    private LocalDateTime selectionStartTime;
+
+    /**
+     * 选课结束时间
+     */
+    private LocalDateTime selectionEndTime;
+
     @TableLogic
     private Integer deleted;
 

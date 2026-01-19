@@ -15,7 +15,12 @@
                 <el-icon :size="48" color="rgba(255,255,255,0.8)"><Reading /></el-icon>
               </div>
               <div class="course-info">
-                <h3 class="course-name">{{ course.courseName }}</h3>
+                <h3 class="course-name">
+                  {{ course.courseName }}
+                  <el-tag :type="course.courseType === 1 ? 'warning' : 'success'" size="small" style="margin-left: 8px">
+                    {{ course.courseType === 1 ? '选修' : '必修' }}
+                  </el-tag>
+                </h3>
                 <p class="course-desc">{{ stripHtmlTags(course.description, 60) || '暂无描述' }}</p>
                 <div class="course-meta">
                   <span class="meta-item">
