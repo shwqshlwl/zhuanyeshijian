@@ -113,4 +113,11 @@ public class ExperimentController {
         ExperimentResultVO result = experimentService.getStudentSubmission(experimentId, studentId);
         return Result.success(result);
     }
+
+    @GetMapping("/{id}/statistics")
+    @Operation(summary = "获取实验提交统计（教师）")
+    public Result<com.example.citp.model.vo.ExperimentSubmitStatVO> getSubmitStatistics(@PathVariable Long id) {
+        com.example.citp.model.vo.ExperimentSubmitStatVO statistics = experimentService.getSubmitStatistics(id);
+        return Result.success(statistics);
+    }
 }

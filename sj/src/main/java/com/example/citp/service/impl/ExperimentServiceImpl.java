@@ -659,6 +659,108 @@ public class ExperimentServiceImpl implements ExperimentService {
         }
     }
 
+    @Override
+    public com.example.citp.model.vo.ExperimentSubmitStatVO getSubmitStatistics(Long experimentId) {
+        // 检查实验是否存在
+        Experiment experiment = experimentMapper.selectById(experimentId);
+        if (experiment == null) {
+            throw new BusinessException("实验不存在");
+        }
+
+        com.example.citp.model.vo.ExperimentSubmitStatVO statVO = new com.example.citp.model.vo.ExperimentSubmitStatVO();
+
+        // 获取该课程下所有学生
+        Long courseId = experiment.getCourseId();
+        
+        // 查询课程关联的班级
+        java.util.List<com.example.citp.model.entity.ClassEntity> classes = classMapper.selectList(
+                new LambdaQueryWrapper<com.example.citp.model.entity.ClassEntity>()
+                        .eq(com.example.citp.model.entity.ClassEntity::getCourseId, courseId));
+
+        if (classes.isEmpty()) {
+            statVO.setTotalStudents(0);
+            statVO.setSubmittedCount(0);
+            statVO.setUnsubmittedCount(0);
+            statVO.setUnsubmittedStudents(new java.util.ArrayList<>());
+            return statVO;
+        }
+
+        // 获取所有班级ID
+        java.util.List<Long> classIds = classes.stream()
+                .map(com.example.citp.model.entity.ClassEntity::getId)
+                .collect(java.util.stream.Collectors.toList());
+
+        // 查询这些班级的所有学生
+        java.util.List<Long> studentIds = jdbcTemplate.queryForList(
+                "SELECT student_id FROM student_class WHERE class_id IN (" +
+                        classIds.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(",")) + ")",
+                Long.class);
+
+        if (studentIds.isEmpty()) {
+            statVO.setTotalStudents(0);
+            statVO.setSubmittedCount(0);
+            statVO.setUnsubmittedCount(0);
+            statVO.setUnsubmittedStudents(new java.util.ArrayList<>());
+            return statVO;
+        }
+
+        // 去重学生ID
+        studentIds = studentIds.stream().distinct().collect(java.util.stream.Collectors.toList());
+
+        // 查询已提交的学生ID
+        java.util.List<Long> submittedStudentIds = experimentSubmitMapper.selectList(
+                new LambdaQueryWrapper<ExperimentSubmit>()
+                        .eq(ExperimentSubmit::getExperimentId, experimentId)
+                        .in(ExperimentSubmit::getStudentId, studentIds))
+                .stream()
+                .map(ExperimentSubmit::getStudentId)
+                .distinct()
+                .collect(java.util.stream.Collectors.toList());
+
+        // 计算未提交的学生ID
+        java.util.List<Long> unsubmittedStudentIds = studentIds.stream()
+                .filter(id -> !submittedStudentIds.contains(id))
+                .collect(java.util.stream.Collectors.toList());
+
+        // 查询未提交学生的详细信息
+        java.util.List<com.example.citp.model.vo.ExperimentSubmitStatVO.StudentInfo> unsubmittedStudents = new java.util.ArrayList<>();
+        if (!unsubmittedStudentIds.isEmpty()) {
+            java.util.List<SysUser> students = sysUserMapper.selectBatchIds(unsubmittedStudentIds);
+            
+            // 创建学生ID到班级的映射
+            java.util.Map<Long, String> studentClassMap = new java.util.HashMap<>();
+            for (Long classId : classIds) {
+                java.util.List<Long> classStudentIds = jdbcTemplate.queryForList(
+                        "SELECT student_id FROM student_class WHERE class_id = ?",
+                        Long.class, classId);
+                
+                com.example.citp.model.entity.ClassEntity classEntity = classMapper.selectById(classId);
+                String className = classEntity != null ? classEntity.getClassName() : "";
+                
+                for (Long studentId : classStudentIds) {
+                    studentClassMap.put(studentId, className);
+                }
+            }
+
+            for (SysUser student : students) {
+                com.example.citp.model.vo.ExperimentSubmitStatVO.StudentInfo info = 
+                        new com.example.citp.model.vo.ExperimentSubmitStatVO.StudentInfo();
+                info.setStudentId(student.getId());
+                info.setStudentNo(student.getUsername());
+                info.setStudentName(student.getRealName());
+                info.setClassName(studentClassMap.getOrDefault(student.getId(), ""));
+                unsubmittedStudents.add(info);
+            }
+        }
+
+        statVO.setTotalStudents(studentIds.size());
+        statVO.setSubmittedCount(submittedStudentIds.size());
+        statVO.setUnsubmittedCount(unsubmittedStudentIds.size());
+        statVO.setUnsubmittedStudents(unsubmittedStudents);
+
+        return statVO;
+    }
+
     /**
      * 获取当前登录用户
      */

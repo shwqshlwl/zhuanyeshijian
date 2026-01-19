@@ -35,7 +35,17 @@
           <el-descriptions-item label="时间限制">{{ experiment.timeLimit || 1000 }} ms</el-descriptions-item>
           <el-descriptions-item label="内存限制">{{ experiment.memoryLimit || 128 }} MB</el-descriptions-item>
           <el-descriptions-item label="提交情况" v-if="userStore.isTeacher">
-            {{ experiment.submitCount || 0 }} / {{ experiment.totalCount || 0 }}
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span>已提交: {{ statistics.submittedCount || 0 }} / {{ statistics.totalStudents || 0 }}</span>
+              <el-button 
+                type="warning" 
+                size="small" 
+                link
+                @click="showUnsubmittedDialog = true"
+                v-if="statistics.unsubmittedCount > 0">
+                查看未提交 ({{ statistics.unsubmittedCount }})
+              </el-button>
+            </div>
           </el-descriptions-item>
           <el-descriptions-item label="实验描述" :span="3">
             <div class="experiment-desc">{{ experiment.description || '暂无描述' }}</div>
@@ -183,9 +193,6 @@
         <template #header>
           <div class="card-header">
             <span>学生提交列表</span>
-            <el-button type="success" size="small" @click="exportSubmissions">
-              <el-icon><Download /></el-icon>导出
-            </el-button>
           </div>
         </template>
         
@@ -247,6 +254,19 @@
         <pre class="code-content">{{ currentStudent.code }}</pre>
       </div>
     </el-dialog>
+
+    <!-- 未提交学生名单对话框 -->
+    <el-dialog v-model="showUnsubmittedDialog" title="未提交学生名单" width="700px">
+      <el-table :data="statistics.unsubmittedStudents" stripe max-height="500">
+        <el-table-column type="index" label="序号" width="60" />
+        <el-table-column prop="studentNo" label="学号" width="120" />
+        <el-table-column prop="studentName" label="姓名" width="100" />
+        <el-table-column prop="className" label="班级" />
+      </el-table>
+      <template #footer>
+        <el-button @click="showUnsubmittedDialog = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -278,8 +298,15 @@ const showSubmitResult = ref(false)
 const submissionsLoading = ref(false)
 const submissions = ref([])
 const mySubmissions = ref([])
+const statistics = ref({
+  totalStudents: 0,
+  submittedCount: 0,
+  unsubmittedCount: 0,
+  unsubmittedStudents: []
+})
 
 const showCodeDialog = ref(false)
+const showUnsubmittedDialog = ref(false)
 const currentStudent = ref({})
 
 const languageMap = {
@@ -401,6 +428,20 @@ const fetchSubmissions = async () => {
   }
 }
 
+const fetchStatistics = async () => {
+  try {
+    const res = await request({ url: `/experiments/${experimentId}/statistics`, method: 'get' })
+    statistics.value = res.data || {
+      totalStudents: 0,
+      submittedCount: 0,
+      unsubmittedCount: 0,
+      unsubmittedStudents: []
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
+
 const handleRun = async () => {
   if (!code.value.trim()) {
     ElMessage.warning('请输入代码')
@@ -473,16 +514,13 @@ const viewStudentCode = async (row) => {
   }
 }
 
-const exportSubmissions = () => {
-  ElMessage.info('导出功能开发中')
-}
-
 onMounted(() => {
   fetchExperiment()
   if (userStore.isStudent) {
     fetchMySubmissions()
   } else if (userStore.isTeacher) {
     fetchSubmissions()
+    fetchStatistics()
   }
 })
 </script>

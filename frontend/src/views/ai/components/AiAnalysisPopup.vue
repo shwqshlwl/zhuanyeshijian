@@ -46,7 +46,7 @@
     <template #footer>
       <div class="dialog-footer">
         <el-button @click="handleClose">关闭</el-button>
-        <el-button type="primary" @click="askMore">进一步提问</el-button>
+<!--        <el-button type="primary" @click="askMore">进一步提问</el-button>-->
       </div>
     </template>
   </el-dialog>

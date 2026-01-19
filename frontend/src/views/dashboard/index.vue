@@ -189,8 +189,8 @@ const stats = ref({
 })
 
 const notices = ref([
-  { title: '欢迎使用课程智慧教学平台', time: '2024-01-01' },
-  { title: '系统已升级至最新版本', time: '2024-01-01' }
+  { title: '欢迎使用课程智慧教学平台', time: '2026-01-01' },
+  { title: '系统已升级至最新版本', time: '2026-01-01' }
 ])
 
 const getGreeting = () => {
