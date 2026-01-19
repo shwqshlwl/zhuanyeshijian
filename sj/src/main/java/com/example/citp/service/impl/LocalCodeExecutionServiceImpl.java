@@ -143,7 +143,11 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
                 "java", "-Dfile.encoding=UTF-8", "-Xmx256m", "-cp", workDir, className
             );
             runBuilder.directory(new File(workDir));
+            
+            // 记录开始时间
+            long startTime = System.currentTimeMillis();
             Process runProcess = runBuilder.start();
+            long pid = runProcess.pid();
 
             // 写入输入
             if (input != null && !input.isEmpty()) {
@@ -157,6 +161,25 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
             ExecutorService executor = Executors.newSingleThreadExecutor();
             Future<Integer> future = executor.submit(() -> runProcess.waitFor());
             
+            // 监控内存使用（在另一个线程中）
+            long maxMemory = 0;
+            ExecutorService memoryMonitor = Executors.newSingleThreadExecutor();
+            Future<Long> memoryFuture = memoryMonitor.submit(() -> {
+                long max = 0;
+                try {
+                    while (runProcess.isAlive()) {
+                        long currentMemory = getProcessMemory(pid);
+                        if (currentMemory > max) {
+                            max = currentMemory;
+                        }
+                        Thread.sleep(50); // 每50ms检查一次
+                    }
+                } catch (Exception e) {
+                    // 忽略异常
+                }
+                return max;
+            });
+            
             int runCode;
             String output = "";
             String error = "";
@@ -165,6 +188,14 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
                 runCode = future.get(timeoutSeconds, TimeUnit.SECONDS);
                 output = readStream(runProcess.getInputStream());
                 error = readStream(runProcess.getErrorStream());
+                
+                // 获取最大内存使用
+                try {
+                    maxMemory = memoryFuture.get(100, TimeUnit.MILLISECONDS);
+                } catch (Exception e) {
+                    // 如果获取失败，使用0
+                    maxMemory = 0;
+                }
             } catch (TimeoutException e) {
                 runProcess.destroy();
                 result.put("success", false);
@@ -172,12 +203,19 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
                 return result;
             } finally {
                 executor.shutdown();
+                memoryMonitor.shutdownNow();
             }
+
+            // 计算执行时间
+            long endTime = System.currentTimeMillis();
+            int executeTime = (int) (endTime - startTime);
 
             result.put("success", runCode == 0);
             result.put("output", output);
             result.put("error", error.isEmpty() ? null : error);
             result.put("exitCode", runCode);
+            result.put("executeTime", executeTime); // 毫秒
+            result.put("memoryUsed", (int) (maxMemory / 1024)); // 转换为 KB
 
         } catch (Exception e) {
             result.put("success", false);
@@ -221,7 +259,11 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
             pb.directory(new File(workDir));
             // 设置环境变量，确保 Python 使用 UTF-8
             pb.environment().put("PYTHONIOENCODING", "utf-8");
+            
+            // 记录开始时间
+            long startTime = System.currentTimeMillis();
             Process runProcess = pb.start();
+            long pid = runProcess.pid();
 
             // 写入输入
             if (input != null && !input.isEmpty()) {
@@ -235,6 +277,25 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
             ExecutorService executor = Executors.newSingleThreadExecutor();
             Future<Integer> future = executor.submit(() -> runProcess.waitFor());
             
+            // 监控内存使用
+            long maxMemory = 0;
+            ExecutorService memoryMonitor = Executors.newSingleThreadExecutor();
+            Future<Long> memoryFuture = memoryMonitor.submit(() -> {
+                long max = 0;
+                try {
+                    while (runProcess.isAlive()) {
+                        long currentMemory = getProcessMemory(pid);
+                        if (currentMemory > max) {
+                            max = currentMemory;
+                        }
+                        Thread.sleep(50);
+                    }
+                } catch (Exception e) {
+                    // 忽略异常
+                }
+                return max;
+            });
+            
             int runCode;
             String output = "";
             String error = "";
@@ -243,6 +304,13 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
                 runCode = future.get(timeoutSeconds, TimeUnit.SECONDS);
                 output = readStream(runProcess.getInputStream());
                 error = readStream(runProcess.getErrorStream());
+                
+                // 获取最大内存使用
+                try {
+                    maxMemory = memoryFuture.get(100, TimeUnit.MILLISECONDS);
+                } catch (Exception e) {
+                    maxMemory = 0;
+                }
             } catch (TimeoutException e) {
                 runProcess.destroy();
                 result.put("success", false);
@@ -250,12 +318,19 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
                 return result;
             } finally {
                 executor.shutdown();
+                memoryMonitor.shutdownNow();
             }
+
+            // 计算执行时间
+            long endTime = System.currentTimeMillis();
+            int executeTime = (int) (endTime - startTime);
 
             result.put("success", runCode == 0);
             result.put("output", output);
             result.put("error", error.isEmpty() ? null : error);
             result.put("exitCode", runCode);
+            result.put("executeTime", executeTime);
+            result.put("memoryUsed", (int) (maxMemory / 1024));
 
         } catch (Exception e) {
             result.put("success", false);
@@ -295,8 +370,10 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
                 return result;
             }
 
-            // 运行
+            // 记录开始时间
+            long startTime = System.currentTimeMillis();
             Process runProcess = Runtime.getRuntime().exec(execFile);
+            long pid = runProcess.pid();
 
             // 写入输入
             if (input != null && !input.isEmpty()) {
@@ -310,6 +387,25 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
             ExecutorService executor = Executors.newSingleThreadExecutor();
             Future<Integer> future = executor.submit(() -> runProcess.waitFor());
             
+            // 监控内存使用
+            long maxMemory = 0;
+            ExecutorService memoryMonitor = Executors.newSingleThreadExecutor();
+            Future<Long> memoryFuture = memoryMonitor.submit(() -> {
+                long max = 0;
+                try {
+                    while (runProcess.isAlive()) {
+                        long currentMemory = getProcessMemory(pid);
+                        if (currentMemory > max) {
+                            max = currentMemory;
+                        }
+                        Thread.sleep(50);
+                    }
+                } catch (Exception e) {
+                    // 忽略异常
+                }
+                return max;
+            });
+            
             int runCode;
             String output = "";
             String error = "";
@@ -318,6 +414,13 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
                 runCode = future.get(timeoutSeconds, TimeUnit.SECONDS);
                 output = readStream(runProcess.getInputStream());
                 error = readStream(runProcess.getErrorStream());
+                
+                // 获取最大内存使用
+                try {
+                    maxMemory = memoryFuture.get(100, TimeUnit.MILLISECONDS);
+                } catch (Exception e) {
+                    maxMemory = 0;
+                }
             } catch (TimeoutException e) {
                 runProcess.destroy();
                 result.put("success", false);
@@ -325,12 +428,19 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
                 return result;
             } finally {
                 executor.shutdown();
+                memoryMonitor.shutdownNow();
             }
+
+            // 计算执行时间
+            long endTime = System.currentTimeMillis();
+            int executeTime = (int) (endTime - startTime);
 
             result.put("success", runCode == 0);
             result.put("output", output);
             result.put("error", error.isEmpty() ? null : error);
             result.put("exitCode", runCode);
+            result.put("executeTime", executeTime);
+            result.put("memoryUsed", (int) (maxMemory / 1024));
 
         } catch (Exception e) {
             result.put("success", false);
@@ -370,8 +480,10 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
                 return result;
             }
 
-            // 运行
+            // 记录开始时间
+            long startTime = System.currentTimeMillis();
             Process runProcess = Runtime.getRuntime().exec(execFile);
+            long pid = runProcess.pid();
 
             // 写入输入
             if (input != null && !input.isEmpty()) {
@@ -385,6 +497,25 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
             ExecutorService executor = Executors.newSingleThreadExecutor();
             Future<Integer> future = executor.submit(() -> runProcess.waitFor());
             
+            // 监控内存使用
+            long maxMemory = 0;
+            ExecutorService memoryMonitor = Executors.newSingleThreadExecutor();
+            Future<Long> memoryFuture = memoryMonitor.submit(() -> {
+                long max = 0;
+                try {
+                    while (runProcess.isAlive()) {
+                        long currentMemory = getProcessMemory(pid);
+                        if (currentMemory > max) {
+                            max = currentMemory;
+                        }
+                        Thread.sleep(50);
+                    }
+                } catch (Exception e) {
+                    // 忽略异常
+                }
+                return max;
+            });
+            
             int runCode;
             String output = "";
             String error = "";
@@ -393,6 +524,13 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
                 runCode = future.get(timeoutSeconds, TimeUnit.SECONDS);
                 output = readStream(runProcess.getInputStream());
                 error = readStream(runProcess.getErrorStream());
+                
+                // 获取最大内存使用
+                try {
+                    maxMemory = memoryFuture.get(100, TimeUnit.MILLISECONDS);
+                } catch (Exception e) {
+                    maxMemory = 0;
+                }
             } catch (TimeoutException e) {
                 runProcess.destroy();
                 result.put("success", false);
@@ -400,12 +538,19 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
                 return result;
             } finally {
                 executor.shutdown();
+                memoryMonitor.shutdownNow();
             }
+
+            // 计算执行时间
+            long endTime = System.currentTimeMillis();
+            int executeTime = (int) (endTime - startTime);
 
             result.put("success", runCode == 0);
             result.put("output", output);
             result.put("error", error.isEmpty() ? null : error);
             result.put("exitCode", runCode);
+            result.put("executeTime", executeTime);
+            result.put("memoryUsed", (int) (maxMemory / 1024));
 
         } catch (Exception e) {
             result.put("success", false);
@@ -433,8 +578,10 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
             String sourceFile = workDir + File.separator + "main.js";
             Files.writeString(Paths.get(sourceFile), code, StandardCharsets.UTF_8);
 
-            // 运行
+            // 记录开始时间
+            long startTime = System.currentTimeMillis();
             Process runProcess = Runtime.getRuntime().exec(new String[]{"node", sourceFile});
+            long pid = runProcess.pid();
 
             // 写入输入
             if (input != null && !input.isEmpty()) {
@@ -448,6 +595,25 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
             ExecutorService executor = Executors.newSingleThreadExecutor();
             Future<Integer> future = executor.submit(() -> runProcess.waitFor());
             
+            // 监控内存使用
+            long maxMemory = 0;
+            ExecutorService memoryMonitor = Executors.newSingleThreadExecutor();
+            Future<Long> memoryFuture = memoryMonitor.submit(() -> {
+                long max = 0;
+                try {
+                    while (runProcess.isAlive()) {
+                        long currentMemory = getProcessMemory(pid);
+                        if (currentMemory > max) {
+                            max = currentMemory;
+                        }
+                        Thread.sleep(50);
+                    }
+                } catch (Exception e) {
+                    // 忽略异常
+                }
+                return max;
+            });
+            
             int runCode;
             String output = "";
             String error = "";
@@ -456,6 +622,13 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
                 runCode = future.get(timeoutSeconds, TimeUnit.SECONDS);
                 output = readStream(runProcess.getInputStream());
                 error = readStream(runProcess.getErrorStream());
+                
+                // 获取最大内存使用
+                try {
+                    maxMemory = memoryFuture.get(100, TimeUnit.MILLISECONDS);
+                } catch (Exception e) {
+                    maxMemory = 0;
+                }
             } catch (TimeoutException e) {
                 runProcess.destroy();
                 result.put("success", false);
@@ -463,12 +636,19 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
                 return result;
             } finally {
                 executor.shutdown();
+                memoryMonitor.shutdownNow();
             }
+
+            // 计算执行时间
+            long endTime = System.currentTimeMillis();
+            int executeTime = (int) (endTime - startTime);
 
             result.put("success", runCode == 0);
             result.put("output", output);
             result.put("error", error.isEmpty() ? null : error);
             result.put("exitCode", runCode);
+            result.put("executeTime", executeTime);
+            result.put("memoryUsed", (int) (maxMemory / 1024));
 
         } catch (Exception e) {
             result.put("success", false);
@@ -624,5 +804,57 @@ public class LocalCodeExecutionServiceImpl implements CodeExecutionService {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /**
+     * 获取进程内存使用（字节）
+     * Windows 系统使用 tasklist 命令
+     */
+    private long getProcessMemory(long pid) {
+        try {
+            String os = System.getProperty("os.name").toLowerCase();
+            
+            if (os.contains("win")) {
+                // Windows: 使用 tasklist 命令
+                ProcessBuilder pb = new ProcessBuilder("tasklist", "/FI", "PID eq " + pid, "/FO", "CSV", "/NH");
+                Process process = pb.start();
+                
+                String output = readStream(process.getInputStream());
+                process.waitFor(1, TimeUnit.SECONDS);
+                
+                // 解析输出: "java.exe","12345","Console","1","123,456 K"
+                if (output != null && !output.isEmpty()) {
+                    String[] parts = output.split(",");
+                    if (parts.length >= 5) {
+                        // 提取内存值，格式如 "123,456 K"
+                        String memStr = parts[4].replaceAll("[\"\\s,K]", "");
+                        try {
+                            return Long.parseLong(memStr) * 1024; // 转换为字节
+                        } catch (NumberFormatException e) {
+                            return 0;
+                        }
+                    }
+                }
+            } else if (os.contains("nix") || os.contains("nux") || os.contains("mac")) {
+                // Linux/Mac: 使用 ps 命令
+                ProcessBuilder pb = new ProcessBuilder("ps", "-p", String.valueOf(pid), "-o", "rss=");
+                Process process = pb.start();
+                
+                String output = readStream(process.getInputStream());
+                process.waitFor(1, TimeUnit.SECONDS);
+                
+                if (output != null && !output.isEmpty()) {
+                    try {
+                        // ps 返回的是 KB
+                        return Long.parseLong(output.trim()) * 1024;
+                    } catch (NumberFormatException e) {
+                        return 0;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // 忽略异常，返回0
+        }
+        return 0;
     }
 }

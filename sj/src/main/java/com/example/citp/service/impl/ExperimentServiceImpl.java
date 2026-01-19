@@ -324,8 +324,19 @@ public class ExperimentServiceImpl implements ExperimentService {
                 String actualOutput = (String) execResult.get("output");
                 String error = (String) execResult.get("error");
                 
-                log.info("测试用例 {} 执行结果: success={}, output={}, error={}", 
-                    i + 1, success, actualOutput, error);
+                // 获取执行时间和内存使用
+                Integer executeTime = (Integer) execResult.get("executeTime");
+                Integer memoryUsed = (Integer) execResult.get("memoryUsed");
+                
+                if (executeTime != null) {
+                    totalExecuteTime += executeTime;
+                }
+                if (memoryUsed != null && memoryUsed > maxMemoryUsed) {
+                    maxMemoryUsed = memoryUsed;
+                }
+                
+                log.info("测试用例 {} 执行结果: success={}, output={}, error={}, time={}ms, memory={}KB", 
+                    i + 1, success, actualOutput, error, executeTime, memoryUsed);
 
                 // 比较输出
                 boolean passed = success && compareOutput(expectedOutput, actualOutput);
@@ -344,6 +355,8 @@ public class ExperimentServiceImpl implements ExperimentService {
                 detail.put("expected", expectedOutput);
                 detail.put("actual", actualOutput);
                 detail.put("error", error);
+                detail.put("executeTime", executeTime);
+                detail.put("memoryUsed", memoryUsed);
                 resultDetails.add(detail);
 
                 // 如果编译错误或运行错误，提前结束
@@ -352,6 +365,8 @@ public class ExperimentServiceImpl implements ExperimentService {
                     submit.setErrorMessage(error);
                     submit.setPassCount(passCount);
                     submit.setTotalCount(totalCount);
+                    submit.setExecuteTime(totalExecuteTime);
+                    submit.setMemoryUsed(maxMemoryUsed);
                     submit.setResultDetail(objectMapper.writeValueAsString(resultDetails));
                     experimentSubmitMapper.updateById(submit);
                     return;
