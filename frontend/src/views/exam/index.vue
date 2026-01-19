@@ -69,7 +69,7 @@
         :page-sizes="[10, 20, 50]" layout="total, sizes, prev, pager, next" @change="fetchList" />
     </div>
 
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑考试' : '创建考试'" width="650px">
+    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑考试' : '创建考试'" width="800px">
       <el-form ref="formRef" :model="examForm" :rules="formRules" label-width="100px">
         <el-form-item label="考试名称" prop="examName">
           <el-input v-model="examForm.examName" placeholder="请输入考试名称" />

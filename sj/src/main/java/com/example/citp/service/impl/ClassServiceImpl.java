@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.citp.exception.BusinessException;
 import com.example.citp.mapper.ClassMapper;
+import com.example.citp.mapper.CourseClassMapper;
 import com.example.citp.mapper.CourseMapper;
 import com.example.citp.mapper.SysUserMapper;
 import com.example.citp.model.dto.ClassRequest;
@@ -15,6 +16,7 @@ import com.example.citp.model.vo.*;
 import com.example.citp.service.ClassService;
 import com.example.citp.service.CourseClassService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -33,6 +35,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ClassServiceImpl implements ClassService {
 
+    private final CourseClassMapper courseClassMapper;
     private final ClassMapper classMapper;
     private final CourseMapper courseMapper;
     private final SysUserMapper sysUserMapper;
@@ -341,11 +344,12 @@ public class ClassServiceImpl implements ClassService {
 
     @Override
     public List<ClassVO> getClassesByCourseId(Long courseId) {
-        List<ClassEntity> classes = classMapper.selectList(new LambdaQueryWrapper<ClassEntity>()
-                .eq(ClassEntity::getCourseId, courseId)
-                .orderByAsc(ClassEntity::getClassName));
+        List<ClassEntity> classes =
+                courseClassMapper.selectClassesByCourseId(courseId);
 
-        return classes.stream().map(this::convertToVO).toList();
+        return classes.stream()
+                .map(this::convertToVO)
+                .toList();
     }
 
     @Override

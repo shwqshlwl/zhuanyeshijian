@@ -38,6 +38,7 @@ public class ExamServiceImpl implements ExamService {
     private final ExamMapper examMapper;
     private final ExamRecordMapper examRecordMapper;
     private final CourseMapper courseMapper;
+
     private final ClassMapper classMapper;
     private final SysUserMapper sysUserMapper;
     private final QuestionBankMapper questionBankMapper;
