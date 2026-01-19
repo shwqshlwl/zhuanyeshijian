@@ -53,4 +53,7 @@ public class ExperimentResultVO {
 
     @Schema(description = "代码")
     private String code;
+
+    @Schema(description = "编程语言")
+    private String language;
 }
