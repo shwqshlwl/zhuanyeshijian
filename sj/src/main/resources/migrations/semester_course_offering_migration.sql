@@ -44,34 +44,54 @@ CREATE TABLE IF NOT EXISTS course_offering (
     INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='开课实例表';
 
--- 3. 修改现有表，添加开课实例ID字段
+-- 3. 修改 course 表，添加选修课相关字段
+ALTER TABLE course ADD COLUMN IF NOT EXISTS course_type TINYINT(1) NOT NULL DEFAULT 0 COMMENT '课程类型：0-必修课，1-选修课' AFTER status;
+ALTER TABLE course ADD COLUMN IF NOT EXISTS max_students INT NOT NULL DEFAULT 0 COMMENT '最大选课人数（0表示不限制）' AFTER course_type;
+ALTER TABLE course ADD COLUMN IF NOT EXISTS current_students INT NOT NULL DEFAULT 0 COMMENT '当前选课人数' AFTER max_students;
+ALTER TABLE course ADD COLUMN IF NOT EXISTS selection_start_time DATETIME NULL COMMENT '选课开始时间' AFTER current_students;
+ALTER TABLE course ADD COLUMN IF NOT EXISTS selection_end_time DATETIME NULL COMMENT '选课结束时间' AFTER selection_start_time;
 
--- 3.1 修改 course_class 表（课程-班级关联表）
+-- 4. 修改现有表，添加开课实例ID字段
+
+-- 4.1 修改 course_class 表（课程-班级关联表）
 ALTER TABLE course_class ADD COLUMN offering_id BIGINT NULL COMMENT '开课实例ID' AFTER course_id;
 ALTER TABLE course_class ADD INDEX idx_offering_id (offering_id);
 
--- 3.2 修改 homework 表
+-- 4.2 修改 homework 表
 ALTER TABLE homework ADD COLUMN offering_id BIGINT NULL COMMENT '开课实例ID' AFTER course_id;
 ALTER TABLE homework ADD INDEX idx_offering_id (offering_id);
 
--- 3.3 修改 exam 表
+-- 4.3 修改 exam 表
 ALTER TABLE exam ADD COLUMN offering_id BIGINT NULL COMMENT '开课实例ID' AFTER course_id;
 ALTER TABLE exam ADD INDEX idx_offering_id (offering_id);
 
--- 3.4 修改 student_course 表（学生选课表）
-ALTER TABLE student_course ADD COLUMN offering_id BIGINT NULL COMMENT '开课实例ID' AFTER course_id;
-ALTER TABLE student_course ADD INDEX idx_offering_id (offering_id);
+-- 4.4 创建学生选课表（如果不存在）
+CREATE TABLE IF NOT EXISTS student_course (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    student_id BIGINT NOT NULL COMMENT '学生ID',
+    course_id BIGINT NOT NULL COMMENT '课程ID',
+    offering_id BIGINT NULL COMMENT '开课实例ID',
+    enrollment_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '选课时间',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1-已选课，0-已退课',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标记',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_student_offering (student_id, offering_id, deleted),
+    INDEX idx_student_id (student_id),
+    INDEX idx_course_id (course_id),
+    INDEX idx_offering_id (offering_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='学生选课表';
 
--- 4. 数据迁移：创建默认学期和开课实例
+-- 5. 数据迁移：创建默认学期和开课实例
 
--- 4.1 创建默认学期（2024-2025学年第1学期）
+-- 5.1 创建默认学期（2024-2025学年第1学期）
 INSERT INTO semester (semester_name, semester_code, academic_year, term_number, start_date, end_date, status, is_current, description)
 VALUES ('2024-2025学年第1学期', '202401', '2024-2025', 1, '2024-09-01', '2025-01-15', 1, 1, '默认学期（数据迁移创建）');
 
--- 4.2 获取默认学期ID（通过变量）
+-- 5.2 获取默认学期ID（通过变量）
 SET @default_semester_id = LAST_INSERT_ID();
 
--- 4.3 为所有现有课程创建开课实例
+-- 5.3 为所有现有课程创建开课实例
 INSERT INTO course_offering (course_id, semester_id, teacher_id, status, max_students, current_students)
 SELECT
     id as course_id,
@@ -83,30 +103,30 @@ SELECT
 FROM course
 WHERE deleted = 0;
 
--- 4.4 更新 course_class 表的 offering_id
+-- 5.4 更新 course_class 表的 offering_id
 UPDATE course_class cc
 INNER JOIN course_offering co ON cc.course_id = co.course_id AND co.semester_id = @default_semester_id
 SET cc.offering_id = co.id;
 
--- 4.5 更新 homework 表的 offering_id
+-- 5.5 更新 homework 表的 offering_id
 UPDATE homework h
 INNER JOIN course_offering co ON h.course_id = co.course_id AND co.semester_id = @default_semester_id
 SET h.offering_id = co.id
 WHERE h.deleted = 0;
 
--- 4.6 更新 exam 表的 offering_id
+-- 5.6 更新 exam 表的 offering_id
 UPDATE exam e
 INNER JOIN course_offering co ON e.course_id = co.course_id AND co.semester_id = @default_semester_id
 SET e.offering_id = co.id
 WHERE e.deleted = 0;
 
--- 4.7 更新 student_course 表的 offering_id
+-- 5.7 更新 student_course 表的 offering_id
 UPDATE student_course sc
 INNER JOIN course_offering co ON sc.course_id = co.course_id AND co.semester_id = @default_semester_id
 SET sc.offering_id = co.id
 WHERE sc.deleted = 0;
 
--- 5. 添加外键约束（可选，根据需要启用）
+-- 6. 添加外键约束（可选，根据需要启用）
 -- ALTER TABLE course_offering ADD CONSTRAINT fk_offering_course FOREIGN KEY (course_id) REFERENCES course(id);
 -- ALTER TABLE course_offering ADD CONSTRAINT fk_offering_semester FOREIGN KEY (semester_id) REFERENCES semester(id);
 -- ALTER TABLE course_class ADD CONSTRAINT fk_course_class_offering FOREIGN KEY (offering_id) REFERENCES course_offering(id);
@@ -114,7 +134,7 @@ WHERE sc.deleted = 0;
 -- ALTER TABLE exam ADD CONSTRAINT fk_exam_offering FOREIGN KEY (offering_id) REFERENCES course_offering(id);
 -- ALTER TABLE student_course ADD CONSTRAINT fk_student_course_offering FOREIGN KEY (offering_id) REFERENCES course_offering(id);
 
--- 6. 验证数据迁移
+-- 7. 验证数据迁移
 SELECT
     '学期数' as item,
     COUNT(*) as count
@@ -148,5 +168,5 @@ FROM student_course WHERE offering_id IS NOT NULL;
 -- 注意：
 -- 1. 运行此脚本前请备份数据库
 -- 2. offering_id 字段暂时允许 NULL，以保持向后兼容
--- 3. 后续新增数据时，应优先使用 offering_id
+
 -- 4. 可以逐步将 course_id 字段标记为废弃
